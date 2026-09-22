@@ -1,0 +1,210 @@
+@use '../../../node_modules/@nutui/nutui-react-taro/dist/styles/variables' as *;
+@use '../../styles/vars' as dsh;
+
+.page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  /* 安卓 SessionListScreen 是 Scaffold(surface 底) + 透明 ListItem，行间没有分隔线，
+     所以整页取卡片/表面色，行自身不再铺白底画线。 */
+  background: var(--dsh-color-card);
+  // 底部常驻的归档入口是固定定位的，列表尾巴要留出它的高度（含安全区）。
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+}
+
+/* 连接状态点的点按范围：对齐 Android `IconButton { ConnectionDot(model) }`——
+   点的是一个标准图标按钮，只是里面画的是一颗小圆点而不是图标。 */
+.statusDotButton {
+  width: 40px;
+  height: 40px;
+  max-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 20px;
+}
+
+.statusDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.dotOk {
+  background: var(--dsh-color-good);
+}
+
+.dotPending {
+  background: var(--dsh-color-warning);
+}
+
+.dotBad {
+  background: var(--dsh-color-bad);
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* 对齐 Android SectionHeader：padding(horizontal = 16.dp, vertical = 10.dp)。 */
+  padding: 10px 16px;
+}
+
+.groupTitle {
+  /* 对齐 Android titleSmall（14sp）+ outline 色。 */
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--dsh-color-outline);
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.groupCount {
+  font-size: 12px;
+  color: var(--dsh-color-outline);
+}
+
+/* 对齐 Android ExpandMore 20dp + outline。 */
+.chevron {
+  font-size: 20px;
+  color: var(--dsh-color-outline);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* 对齐 M3 ListItem 单行 56dp：透明底、无分隔线。 */
+  min-height: 56px;
+  padding: 0 16px;
+}
+
+.rowTitle {
+  flex: 1;
+  /* 对齐 M3 ListItem headline bodyLarge（16sp）。 */
+  font-size: 16px;
+  color: var(--dsh-color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.glyph {
+  /* 对齐 Android StatusGlyph 的 16dp 图标与 outline 默认色。 */
+  width: 16px;
+  font-size: 16px;
+  line-height: 20px;
+  color: var(--dsh-color-outline);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.glyphRunning {
+  color: var(--dsh-color-primary);
+}
+
+.glyphAwaiting {
+  color: var(--dsh-color-warning);
+}
+
+.glyphError {
+  color: var(--dsh-color-bad);
+}
+
+.glyphPinned {
+  color: var(--dsh-color-outline);
+}
+
+.trailing {
+  font-size: 12px;
+  color: var(--dsh-color-outline);
+  flex-shrink: 0;
+}
+
+.badge {
+  padding: 2px 8px;
+  border-radius: 9px;
+  background: rgba(224, 134, 0, 0.14);
+  color: var(--dsh-color-warning);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.notice {
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--dsh-color-outline);
+}
+
+.showMore {
+  /* 对齐 Android TextButton（labelLarge 14sp）。 */
+  padding: 12px;
+  font-size: 14px;
+  color: var(--dsh-color-primary);
+}
+
+.footer {
+  padding: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--dsh-color-text-faint);
+}
+
+/* 列表最下面的归档入口：固定在这一列底部（对齐 Android/Mac 侧栏），不随列表滚动。 */
+.archiveEntry {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  /* 图标与标题的间距跟 .row 同一口径，不然它比上面每一行都宽一截。 */
+  gap: 10px;
+  /* 对齐 Android 底部 ListItem（56dp）与它上方的 HorizontalDivider。
+     安全区要加在 56dp 之外：border-box 下直接写 padding-bottom 会从这 56px 里扣，
+     行高不变、内容却被挤到上半截，看着就是「底部边距不对」。 */
+  min-height: calc(56px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  padding: 0 16px;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--dsh-color-card);
+  border-top: 1px solid var(--dsh-color-border);
+}
+
+/* 和列表行的状态图标同规格（.glyph）：16px 字号 + 16px 固定槽位 + outline 色。 */
+.archiveGlyph {
+  width: 16px;
+  font-size: 16px;
+  line-height: 20px;
+  text-align: center;
+  flex-shrink: 0;
+  color: var(--dsh-color-outline);
+}
+
+.archiveLabel {
+  font-size: 16px;
+  color: var(--dsh-color-text);
+}
+
+/* 空态/连接中：在剩余空间里垂直+水平居中（对齐 Android StatusOverlay 的
+   Modifier.align(Alignment.Center)，它盖在整个列表之上）。 */
+.stateArea {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.centeredGlyph {
+  font-size: 26px;
+  color: var(--dsh-color-text-faint);
+}

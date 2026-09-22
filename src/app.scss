@@ -1,0 +1,77 @@
+/* 全局样式与 NutUI 主题变量覆盖。小程序页面背景与安全区在这里统一。 */
+
+/* Lucide 图标字体（子集 woff2 内联），全局生效；基类与旋转 keyframes 见 ui/icon.module.scss。 */
+@use './styles/lucide.scss';
+@use './styles/theme.scss';
+page {
+  /* NutUI 主色对齐 Android 端 primary */
+  --nutui-color-primary: #1c64f2;
+  --nutui-color-primary-stop-1: #4b83f5;
+  --nutui-color-primary-stop-2: #1c64f2;
+  --nutui-brand-color: #1c64f2;
+
+  background-color: var(--dsh-color-bg);
+  padding: 0;
+  color: var(--dsh-color-text);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.nut-form-item-top {
+  flex-direction: column !important;
+}
+
+.nut-tabs-titles-item,
+.nut-segmented-item,
+.nut-cell,
+.taro-model__btn {
+  cursor: pointer;
+}
+
+.nut-cell-extra {
+  flex: 0.3 !important;
+}
+
+/* 通用排版工具类 */
+.dsh-mono {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+.dsh-ellipsis {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dsh-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 页面底部安全区 */
+.dsh-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/*
+ * 页面根容器：铺满一屏并跟随主题取底色。不能挂在 app.tsx——Taro 小程序端不渲染
+ * App 组件的 JSX，改由 ui/pageShell.tsx 挂在每个页面最外层（详见该文件顶部说明）。
+ *
+ * 深色主题的 class 只能挂在页面内容的最外层 View 上（小程序没法给 `page` 元素加 class），
+ * 而 `page { background-color: var(--dsh-color-bg) }` 会在 page 元素上解析出浅色值。
+ * 这一层保证任何页面/回弹区域都不会露出浅色底；窗口自身的底色另由
+ * state/theme.ts 的 Taro.setBackgroundColor 负责。
+ */
+.dsh-app-root {
+  min-height: 100vh;
+  background: var(--dsh-color-bg);
+  /*
+   * 继承色也必须挂在这一层。`page { color: var(--dsh-color-text) }` 是在 `page` 元素上
+   * 解析的，而 `.dsh-theme-dark` 只能挂在页面内容的最外层 View 上，够不到 page——
+   * 结果深色主题下所有「没有显式设色」的文字（如 ChangedFilesCard 的文件名与标题）
+   * 仍然拿浅色主题的 #1f2328，铺在近黑底上等于隐形。这里按主题作用域内的取值重新声明。
+   */
+  color: var(--dsh-color-text);
+}

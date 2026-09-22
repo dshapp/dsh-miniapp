@@ -1,0 +1,354 @@
+@use '../../node_modules/@nutui/nutui-react-taro/dist/styles/variables' as *;
+@use '../styles/vars' as dsh;
+
+/*
+ * 卡片样式。颜色一律走 styles/_vars.scss（镜像 const.ts），不在这里硬写，
+ * 这样深色主题只要换 vars 一份即可，跟 connectionBanner 等组件的约定一致。
+ */
+
+.card {
+  width: 100%;
+}
+
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  /* 对齐 Android Dimens.chromeRowHeight = 24dp（Cards.kt `heightIn(min = ...)`）。 */
+  min-height: 24px;
+}
+
+.rowGlyph {
+  /* 对齐 Android Cards.kt:54-91 的 size(14.dp)：固定盒宽高，不靠字号撑。 */
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 14px;
+  text-align: center;
+}
+
+.rowTitle {
+  flex: 1;
+  font-size: 12px;
+  line-height: 16px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 摘要后面的附注（例如 todo 的并行数），不能被截断。 */
+.rowSuffix {
+  flex-shrink: 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsh-color-text-faint);
+}
+
+.stateGlyph {
+  flex-shrink: 0;
+  width: 14px;
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.caret {
+  flex-shrink: 0;
+  width: 12px;
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--dsh-color-text-faint);
+}
+
+.tintSubtle {
+  color: var(--dsh-color-text-sub);
+}
+
+.tintBad {
+  color: var(--dsh-color-bad);
+}
+
+.tintWarning {
+  color: var(--dsh-color-warning);
+}
+
+.thinkBody {
+  padding: 4px 0 8px 24px;
+}
+
+.detail {
+  position: relative;
+  padding: 6px 0 8px 24px;
+}
+
+/* 右上角的"交给宿主弹层"入口；只有宿主传了 onOpenDetail 才出现。 */
+.detailAction {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 2px 6px;
+}
+
+.detailActionText {
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+}
+
+.section {
+  margin-top: 12px;
+}
+
+.sectionTitle {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsh-color-text-sub);
+}
+
+.sectionBody {
+  padding: 10px;
+  border-radius: var(--dsh-radius-card);
+  background: var(--dsh-color-card-surface);
+}
+
+/*
+ * 详情弹层里的纯文本正文（思考、通知全文）：保留原始换行，长按可选中复制。
+ * 对齐 Android CardDetailDialog 里的 SelectionText。
+ */
+.detailText {
+  display: block;
+  width: 100%;
+  font-size: 15px;
+  line-height: 23px;
+  color: var(--dsh-color-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.monoBlock {
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--dsh-color-card-surface);
+}
+
+.monoText {
+  font-family: Menlo, Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 18px;
+  /* 对齐 Android Cards.kt:353-366：结果字面量不折行，交给外层横向滚动。 */
+  white-space: pre;
+  color: var(--dsh-color-text);
+}
+
+.errorBlock .monoText {
+  color: var(--dsh-color-bad);
+}
+
+.resultColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.resultMeta {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.exitChip {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.exitOk {
+  background: var(--dsh-color-good-container);
+  color: var(--dsh-color-good);
+}
+
+.exitBad {
+  background: var(--dsh-color-bad-container);
+  color: var(--dsh-color-bad);
+}
+
+.signalText {
+  font-size: 11px;
+  color: var(--dsh-color-text-sub);
+}
+
+.readLine {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+}
+
+.readNumber {
+  flex-shrink: 0;
+  width: 40px;
+  font-family: Menlo, Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsh-color-text-faint);
+  /* 对齐 Android Cards.kt:299-314：行号左对齐。 */
+  text-align: left;
+}
+
+.readText {
+  flex: 1;
+  font-family: Menlo, Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--dsh-color-text);
+}
+
+.diffBlock {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--dsh-color-card-surface);
+}
+
+.diffLine {
+  font-family: Menlo, Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.diffAdd {
+  color: var(--dsh-color-good);
+}
+
+.diffDel {
+  color: var(--dsh-color-bad);
+}
+
+.diffHunk {
+  color: var(--dsh-color-primary);
+}
+
+.diffPlain {
+  color: var(--dsh-color-text);
+}
+
+.noticeRow {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 0;
+}
+
+.noticeGlyph {
+  flex-shrink: 0;
+  width: 16px;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.noticeText {
+  flex: 1;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--dsh-color-text);
+}
+
+.jsonContainer {
+  display: flex;
+  flex-direction: column;
+}
+
+.jsonToggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+.jsonCaret {
+  flex-shrink: 0;
+  width: 12px;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--dsh-color-text-sub);
+}
+
+.jsonChildren {
+  /* 对齐 Android Cards.kt:248-253：只留 12dp 起始缩进，不画左边框。 */
+  padding-left: 12px;
+}
+
+/* 键名一律次级灰，值按类型分色，结构一眼可辨。 */
+.jsonKey {
+  font-family: Menlo, Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsh-color-text-sub);
+}
+
+.jsonScalarRow {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.jsonScalar {
+  flex: 1;
+  font-family: Menlo, Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.jsonString {
+  color: var(--dsh-color-good);
+}
+
+.jsonNumber {
+  color: var(--dsh-color-primary);
+}
+
+.jsonBool {
+  color: var(--dsh-color-warning);
+}
+
+.jsonNull {
+  color: var(--dsh-color-text-faint);
+}
+
+/* 子调用树：每层往右缩进一点（对齐 Android Cards.kt:425-431 的 padding(start = 18.dp)，
+   不再额外画左边框/外边距）。 */
+.subCall {
+  padding-left: 18px;
+}
+
+/* read_image 卡身：路径标签 + 图片（对齐 Android ToolImageCard）。 */
+.toolImageCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* 对齐 Android Cards.kt:462-472：start 22 / 上下 4。 */
+  padding: 4px 0 4px 22px;
+}
+
+.toolImagePath {
+  font-size: 11px;
+  color: var(--dsh-color-text-faint);
+}

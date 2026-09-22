@@ -1,0 +1,535 @@
+@use '../../node_modules/@nutui/nutui-react-taro/dist/styles/variables' as *;
+@use '../styles/vars' as dsh;
+
+// 输入区：与 Android 的 Surface(background) 同底色，只有内部输入卡片自己有底色。
+
+.root {
+  display: flex;
+  flex-direction: column;
+  // 行间距与内边距对齐 Android ComposerBar：spacedBy(8.dp) + padding(horizontal = 16.dp, vertical = 8.dp)。
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--dsh-color-bg);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+// —— 通用信息行 ——————————————————————————————————————————————
+
+/* InfoLine：无垂直内边距、图标 14px、正文最多 2 行省略
+   （对齐 Android ComposerBar.kt:620-631）。 */
+.infoLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.infoGlyph {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.infoText {
+  flex: 1;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.infoSub {
+  color: var(--dsh-color-text-sub);
+}
+
+.infoWarn {
+  color: var(--dsh-color-warning);
+}
+
+.infoBad {
+  color: var(--dsh-color-bad);
+}
+
+// —— 待办带 ————————————————————————————————————————————————————
+
+.strip {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 待办头部：垂直内边距 6px、清单图标 16px、分组图标 12px、箭头 18px、
+   头部文字 bodyMedium=14px、计数 labelMedium=12px（对齐 Android ComposerBar.kt:645-672）。 */
+.stripHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.stripGlyph {
+  font-size: 16px;
+  color: var(--dsh-color-text-sub);
+}
+
+.stripDot {
+  font-size: 12px;
+  color: var(--dsh-color-text-faint);
+}
+
+.stripCount {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  font-size: 12px;
+}
+
+.stripTitle {
+  flex: 1;
+  font-size: 14px;
+  color: var(--dsh-color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.stripChevron {
+  font-size: 18px;
+  color: var(--dsh-color-text-faint);
+}
+
+.todoDone {
+  color: var(--dsh-color-good);
+}
+
+.todoActive {
+  color: var(--dsh-color-primary);
+}
+
+.todoPending {
+  color: var(--dsh-color-warning);
+}
+
+.todoList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0 4px 4px;
+}
+
+.todoRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.todoItemGlyph {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.todoContent {
+  flex: 1;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--dsh-color-text-sub);
+}
+
+// —— 目标条 ————————————————————————————————————————————————————
+
+/* 目标条：行高至少 44px（Dimens.stripRowHeight）、图标 16px、文字 labelLarge=14px、
+   更多键 32px 命中区内 18px 图标（对齐 Android ComposerBar.kt:723-739）。 */
+.goalBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.goalGlyph {
+  font-size: 16px;
+  color: var(--dsh-color-text-sub);
+}
+
+.goalText {
+  flex: 1;
+  font-size: 14px;
+  color: var(--dsh-color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.goalMore {
+  font-size: 18px;
+  color: var(--dsh-color-text-faint);
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// —— 队列条 ————————————————————————————————————————————————————
+
+.queueStrip {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 队列行固定 44px 高（Dimens.stripRowHeight）、时钟图标 16px、操作键 32px 命中区内 16px
+   图标（对齐 Android ComposerBar.kt:812-854）。 */
+.queueRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  border-bottom: 1px solid var(--dsh-color-border);
+}
+
+/* 只有行间画分隔线，最后一行不画（对齐 Android：if (index < size - 1) HorizontalDivider）。 */
+.queueRow:last-child {
+  border-bottom: none;
+}
+
+.queueGlyph {
+  font-size: 16px;
+  color: var(--dsh-color-text-sub);
+}
+
+.queueText {
+  flex: 1;
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.queueAction {
+  font-size: 16px;
+  color: var(--dsh-color-text-sub);
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 插队不可用时用 outline@60%（对齐 Android ComposerBar.kt:847）。 */
+.queueActionOff {
+  color: color-mix(in srgb, var(--dsh-color-outline) 60%, transparent);
+}
+
+// —— 候选面板 ————————————————————————————————————————————————
+
+/* 候选面板：只有表面底色 + 12px 圆角，无边框（对齐 Android ComposerBar.kt:878-885）。 */
+.suggestionPanel {
+  max-height: 208px;
+  background: var(--dsh-color-bg);
+  border-radius: var(--dsh-radius-card);
+}
+
+.suggestionRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+}
+
+.suggestionTitle {
+  font-size: 14px;
+  color: var(--dsh-color-text);
+  flex-shrink: 0;
+}
+
+.suggestionHint {
+  font-size: 12px;
+  color: var(--dsh-color-text-sub);
+  flex-shrink: 0;
+}
+
+.suggestionSubtitle {
+  flex: 1;
+  font-size: 12px;
+  color: var(--dsh-color-text-sub);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+// —— token 条 ————————————————————————————————————————————————
+
+.tokenStrip {
+  white-space: nowrap;
+}
+
+.tokenRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tokenPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  /* 主色走主题变量，深色主题下不该还是浅色主题的品牌蓝。 */
+  background: color-mix(in srgb, var(--dsh-color-primary) 14%, transparent);
+}
+
+.tokenText {
+  font-size: 12px;
+  color: var(--dsh-color-primary);
+}
+
+// —— 附件条 ————————————————————————————————————————————————
+
+.attachmentStrip {
+  white-space: nowrap;
+}
+
+.attachmentRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 220px;
+  padding: 3px 8px;
+  border-radius: 14px;
+  background: var(--dsh-color-card);
+  border: 1px solid var(--dsh-color-border);
+}
+
+.chipGlyph {
+  font-size: 13px;
+}
+
+.chipText {
+  max-width: 150px;
+  font-size: 12px;
+  color: var(--dsh-color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chipRemove {
+  font-size: 11px;
+  color: var(--dsh-color-text-faint);
+}
+
+.thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+
+.thumbSkeleton {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: var(--dsh-color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thumbSkeletonGlyph {
+  font-size: 11px;
+  color: var(--dsh-color-text-faint);
+}
+
+// —— 输入卡片 ————————————————————————————————————————————————
+
+/* 输入卡片：垂直内边距 8px、字段与操作行间距 4px、底色 surfaceVariant
+   （对齐 Android ComposerBar.kt:253-258）；正文行高 24px（bodyLarge，ComposerBar.kt:505）。 */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: 22px;
+  background: var(--dsh-color-surface-variant);
+}
+
+.textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 4px;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--dsh-color-text);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.actionScroll {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.actionRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 加号/回形针：32px 命中区，加号 24px、回形针 18px
+   （对齐 Android ComposerBar.kt:280-307）。 */
+.launcher {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--dsh-color-text-sub);
+}
+
+.attachLauncher {
+  font-size: 18px;
+}
+
+.controlAction {
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+  padding: 6px 2px;
+}
+
+.controlWarn {
+  color: var(--dsh-color-warning);
+}
+
+/* 计划 chip：垂直内边距 4px、胶囊圆角、labelLarge=14px、底色约 13%
+   （对齐 Android ComposerBar.kt:356-368 的 CircleShape + 0x22E08600）。 */
+.planChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dsh-color-warning) 13%, transparent);
+}
+
+.planChipText {
+  font-size: 14px;
+  color: var(--dsh-color-warning);
+}
+
+/* 占用环：外层 32px 命中区，内层 18px 进度弧（2px 描边）。
+   conic-gradient 从 -90° 起画进度，内层用卡片底色挖空成环（对齐 Android
+   ComposerBar.kt:596-618 的 18dp Canvas + 2dp Stroke + startAngle -90°）。 */
+.contextRing {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.contextRingArc {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+
+.contextRingHole {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: var(--dsh-color-surface-variant);
+}
+
+.steerButton {
+  flex-shrink: 0;
+  padding: 5px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--dsh-color-border);
+  background: var(--dsh-color-bg);
+  font-size: 13px;
+  color: var(--dsh-color-primary);
+}
+
+/*
+ * 发送 / 终止：同一个位置上互斥的主操作，所以必须是同一副骨架——36px 命中区里
+ * 一枚 32px 实心圆，圆里一个 16px 的前景。只给终止上底色、发送裸着放，两枚按钮
+ * 的视觉重量对不上，切换时还会跳。前景色走 on-primary / on-bad，深浅主题各自反色。
+ */
+.stopButton,
+.sendButton {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stopCircle,
+.sendCircle {
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stopCircle {
+  background: var(--dsh-color-bad);
+}
+
+/* 方块只占圆的 1/3：Material 的 Stop 图标画在 24 的画布里也只是中间 12 的方，
+   照着命中区尺寸直接放大会变成「圆里塞满一个方块」。 */
+.stopSquare {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--dsh-color-on-bad);
+}
+
+.sendCircle {
+  background: var(--dsh-color-primary);
+}
+
+/* 不可发送时圆保留、只退成中性底：位置和形状不动，避免按钮忽隐忽现。 */
+.sendCircleOff {
+  background: color-mix(in srgb, var(--dsh-color-outline) 22%, transparent);
+}
+
+.sendLabel {
+  font-size: 14px;
+  line-height: 14px;
+  color: var(--dsh-color-on-primary);
+}
+
+.sendLabelOff {
+  font-size: 14px;
+  line-height: 14px;
+  color: var(--dsh-color-text-faint);
+}

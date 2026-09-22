@@ -1,0 +1,168 @@
+@use '../../../node_modules/@nutui/nutui-react-taro/dist/styles/variables' as *;
+@use '../../styles/vars' as dsh;
+
+.page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  background: var(--dsh-color-bg);
+  display: flex;
+  flex-direction: column;
+}
+
+/* 顶栏要通栏，所以内边距从 .page 挪到正文这一层。 */
+.body {
+  flex: 1;
+  padding: 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tip {
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+  line-height: 1.6;
+}
+
+.card {
+  background: var(--dsh-color-card);
+  border-radius: var(--dsh-radius-card);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.label {
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+}
+
+.textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--dsh-color-border);
+  border-radius: 8px;
+  font-size: 13px;
+  background: #ffffff;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+
+.error {
+  font-size: 13px;
+  color: var(--dsh-color-bad);
+}
+
+.primary {
+  margin-top: 4px;
+  height: 44px;
+  border-radius: 22px;
+  background: var(--dsh-color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.primaryDisabled {
+  opacity: 0.45;
+}
+
+.primaryText {
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.secondary {
+  height: 44px;
+  border-radius: 22px;
+  border: 1px solid var(--dsh-color-border);
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.secondaryText {
+  color: var(--dsh-color-primary);
+  font-size: 15px;
+}
+
+/* 扫码 / 粘贴的切换已经回到标题栏（对齐 Android PairingScreen 的 TextButton）。 */
+
+/* —— 命名弹层 ————————————————————————————————————————————————
+   与设置页的两个弹层同形：遮罩铺满、卡片居中（对齐 Android AlertDialog）。
+   这里必须自绘：wx.showModal 在 editable 下 content 是只读正文，Mac 自报名预填不进去，
+   脚注也没地方放。 */
+
+.modalMask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.dialog {
+  position: fixed;
+  left: 40px;
+  right: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 41;
+  box-sizing: border-box;
+  padding: 20px 20px 8px;
+  background: var(--dsh-color-card);
+  border-radius: var(--dsh-radius-card);
+}
+
+.dialogTitle {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--dsh-color-text);
+}
+
+/* 单行输入（对齐 Android 的 OutlinedTextField(singleLine = true)）。 */
+.dialogInput {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  margin-top: 14px;
+  padding: 0 10px;
+  border: 1px solid var(--dsh-color-border);
+  border-radius: 8px;
+  background: var(--dsh-color-card);
+  font-size: 15px;
+  color: var(--dsh-color-text);
+}
+
+.dialogHint {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--dsh-color-text-sub);
+  line-height: 1.6;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.dialogCancel,
+.dialogConfirm {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 15px;
+  color: var(--dsh-color-primary);
+}

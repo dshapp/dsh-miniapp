@@ -1,0 +1,42 @@
+/* 全屏详情弹层：与 Android CardDetailDialog 同一种壳（顶栏 + 可滚动正文）。 */
+.overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 1000;
+  background: var(--dsh-color-bg);
+  display: flex;
+  flex-direction: column;
+}
+
+/* 顶栏本体归 ui/navBar.tsx 管，这里只留标题位里的图标 + 文字。 */
+
+.headerIcon {
+  font-size: 16px;
+  color: var(--dsh-color-text-sub);
+}
+
+.headerTitleRow {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.headerTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dsh-color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.body {
+  flex: 1;
+  padding: 16px;
+  box-sizing: border-box;
+}

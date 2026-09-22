@@ -1,0 +1,86 @@
+@use '../../node_modules/@nutui/nutui-react-taro/dist/styles/variables' as *;
+@use '../styles/vars' as dsh;
+
+/* 悬浮胶囊：挂在内容之上，不把正文往下顶（对齐 Android ConnectionBanner 的形态）。 */
+.capsule {
+  position: fixed;
+  /* top 由 JS 按状态栏高度写成行内样式（见 connectionBanner.tsx）。 */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 320px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.14);
+}
+
+/* 已连接不画横幅，ok 只留给将来需要时复用。 */
+/* 对齐 Android ConnectionBanner.kt：连接中用 surfaceVariant，失败用 errorContainer。 */
+.ok {
+  background: var(--dsh-color-surface-variant);
+}
+
+.pending {
+  background: var(--dsh-color-surface-variant);
+}
+
+.pending .label {
+  color: var(--dsh-color-on-surface-variant);
+}
+
+.bad {
+  background: var(--dsh-color-error-container);
+}
+
+.bad .label {
+  color: var(--dsh-color-on-error-container);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--dsh-color-text-sub);
+  flex-shrink: 0;
+}
+
+.ok .dot {
+  background: var(--dsh-color-good);
+}
+
+.pending .dot {
+  background: var(--dsh-color-warning);
+}
+
+.bad .dot {
+  background: var(--dsh-color-bad);
+}
+
+.label {
+  color: var(--dsh-color-text);
+  font-weight: 500;
+}
+
+.detail {
+  flex: 1;
+  color: var(--dsh-color-text-sub);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.retry {
+  padding: 2px 10px;
+  border: 1px solid var(--dsh-color-border);
+  border-radius: 10px;
+  background: var(--dsh-color-card);
+}
+
+.retryText {
+  font-size: 12px;
+  color: var(--dsh-color-primary);
+}

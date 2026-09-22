@@ -1,0 +1,89 @@
+.card {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  /* 对齐 Android ChangedFilesCard.kt:60-66 的 surfaceVariant@0.35。 */
+  background-color: var(--dsh-color-card-surface);
+}
+
+.header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+/* 对齐 Android ChangedFilesCard.kt:72-90：图标 15dp、摘要 12sp，用 gap 排版。 */
+.glyph {
+  font-size: 15px;
+}
+
+.title {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.added,
+.deleted,
+.count {
+  font-size: 12px;
+}
+
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 3px 0;
+}
+
+.path {
+  flex: 1;
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.note {
+  font-size: 11px;
+}
+
+.diff {
+  padding: 6px 0 6px 8px;
+  border-left: 2px solid var(--dsh-color-border);
+}
+
+.hunk {
+  margin-bottom: 4px;
+}
+
+.hunkHeader {
+  font-size: 10px;
+  font-family: monospace;
+}
+
+.line {
+  display: block;
+  font-size: 11px;
+  font-family: monospace;
+  /* 对齐 Android 的横向滚动 diff：不折行。 */
+  white-space: pre;
+}
+
+.more {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  padding-top: 4px;
+}
+
+.moreText {
+  font-size: 11px;
+}
+
+.moreGlyph {
+  font-size: 13px;
+  color: var(--dsh-color-text-faint);
+}

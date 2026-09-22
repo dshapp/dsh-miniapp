@@ -1,0 +1,323 @@
+@use '../../node_modules/@nutui/nutui-react-taro/dist/styles/variables' as *;
+
+/*
+ * 这里只放排版/布局，颜色统一由组件从 src/const.ts 取常量后走 style 传入，
+ * 避免 hex 在样式表和 TS 常量各写一份、改一处漏一处。
+ */
+.root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  font-size: 16px;
+  line-height: 25px;
+  word-break: break-word;
+}
+
+/* 卡片内嵌时整体收一档，行高与块间距都跟着 gapBefore 的 compact 分支走。 */
+.rootCompact {
+  font-size: 14px;
+  line-height: 22px;
+}
+
+/*
+ * 模型写的单换行就是要换行（同 GitHub 评论），所以保留 pre-wrap 的换行语义。
+ * 宽度写死 100%：可选中的 Text 在微信里会被改成 inline-block，不占满就会按内容收缩。
+ */
+.paragraph {
+  display: block;
+  width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 段落里混了图片时的外壳：文字段与图片块自上而下排，图片不被拉伸。 */
+.inlineFlow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+}
+
+.heading1 {
+  font-size: 21px;
+  line-height: 28px;
+  font-weight: 700;
+}
+
+.heading2 {
+  font-size: 19px;
+  line-height: 26px;
+  font-weight: 700;
+}
+
+.heading3 {
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.heading4 {
+  font-size: 16px;
+  line-height: 23px;
+  font-weight: 600;
+}
+
+.heading5 {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.heading6 {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.strong {
+  font-weight: 700;
+}
+
+.em {
+  font-style: italic;
+}
+
+.del {
+  text-decoration: line-through;
+}
+
+.link {
+  text-decoration: underline;
+}
+
+.inlineCode {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  /* 对齐 Android Markdown.kt 的 0.92em（跟随正文字号）。 */
+  font-size: 0.92em;
+}
+
+.imageAlt {
+  font-style: italic;
+}
+
+/* 远程图片：宽度随容器、高度按比例（mode=widthFix），上限收一档免得刷屏。 */
+.image {
+  width: 100%;
+  max-width: 280px;
+  border-radius: 10px;
+}
+
+/* 工作区图片的占位：这一层拿不到字节，点它才由宿主读回本机打开查看器。 */
+.imageChip {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--dsh-color-border);
+}
+
+.imageChipGlyph {
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.imageChipText {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 20px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---------------------------------------------------------------- 代码块 */
+
+.codeCard {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.codeHeader {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 2px 4px 2px 12px;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+  /* 对齐 Android Markdown.kt:309-313 的 surfaceVariant 半透明头部。 */
+  background: var(--dsh-color-card-surface);
+}
+
+.codeLang {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.codeCopy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+/* 对齐 Android Markdown.kt：28dp 圆内一颗 14dp 图标。 */
+.codeCopyGlyph {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.codeScroll {
+  width: 100%;
+}
+
+/* 行内元素 + nowrap：长行交给横向滚动，不被硬折行。 */
+.codeText {
+  display: inline-block;
+  padding: 10px 12px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 19px;
+  white-space: pre;
+}
+
+/* ------------------------------------------------------------------ 列表 */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.listItem {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  width: 100%;
+}
+
+/* 标记占固定槽位，序号右对齐，正文左边缘才不会随标记长度抖动。 */
+/* 对齐 Android Markdown.kt:397-410：序号/符号槽 20dp，标记居中。 */
+.marker {
+  flex: none;
+  min-width: 20px;
+  text-align: center;
+  font-size: 15px;
+  line-height: 25px;
+}
+
+.markerTask {
+  flex: none;
+  min-width: 16px;
+  font-size: 16px;
+  line-height: 25px;
+}
+
+.listBody {
+  flex: 1;
+  min-width: 0;
+  padding-left: 8px;
+}
+
+/* ------------------------------------------------------------------ 引用 */
+
+.quote {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  /* 对齐 Android blockSurface = surfaceVariant.copy(alpha = 0.34f)。 */
+  background: var(--dsh-color-card-surface);
+}
+
+/* 左侧色条宽度写死，避免不同端 border 渲染差异。 */
+.quoteBar {
+  flex: none;
+  width: 3px;
+  border-radius: 1.5px;
+  /* 对齐 Android 色条 primary.copy(alpha = 0.45f)。 */
+  opacity: 0.45;
+}
+
+.quoteBody {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px 9px 14px;
+}
+
+/* ------------------------------------------------------------------ 表格 */
+
+.tableScroll {
+  width: 100%;
+}
+
+.table {
+  display: flex;
+  flex-direction: column;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.tableRow {
+  display: flex;
+  flex-direction: row;
+}
+
+/* 对齐 Android Markdown.kt:499-529 的表头底色（surfaceVariant@0.55）。 */
+.tableRowHeader {
+  background: var(--dsh-color-card-surface);
+}
+
+.tableHeadCell {
+  flex: none;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 600;
+}
+
+.tableCell {
+  flex: none;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 19px;
+}
+
+/* --------------------------------------------------------------- 其他块 */
+
+.hr {
+  width: 100%;
+  height: 1px;
+}
+
+/* 等宽纯文本：保留换行，长行折行，不横向滚动。 */
+.monoWrap {
+  width: 100%;
+}
+
+.monoText {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 19px;
+}

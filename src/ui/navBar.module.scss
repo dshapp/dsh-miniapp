@@ -1,0 +1,162 @@
+@use '../styles/vars' as dsh;
+
+/*
+ * 自定义标题栏。
+ *
+ * 高度、状态栏内边距、右侧胶囊让位都由 JS 算好后写成行内样式（见 framework/navbar.ts），
+ * 这里只负责排版与配色：WXSS 是编译期产物，拿不到运行期的胶囊位置。
+ */
+.bar {
+  box-sizing: border-box;
+  width: 100%;
+  background: var(--dsh-color-card);
+  z-index: 30;
+}
+
+/* 与正文同色：正文没有卡片时不该在顶上多出一块白条。 */
+.onPage {
+  background: var(--dsh-color-bg);
+}
+
+.sticky {
+  position: sticky;
+  top: 0;
+}
+
+.flow {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1010;
+}
+
+.divider {
+  border-bottom: 1px solid var(--dsh-color-border);
+}
+
+/* 内容行：高度等于胶囊上下间距 *2 + 胶囊高，所以这一行的中线正好压在胶囊中线上。 */
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  box-sizing: border-box;
+  padding-left: 4px;
+  gap: 2px;
+}
+
+.leading {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* 标题占满中间：安卓 TopAppBar 的标题是左对齐紧跟导航图标的，不是居中。 */
+.titleSlot {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  padding: 0 4px;
+}
+
+/* 标题：一行、超长省略（对齐安卓 maxLines = 1 + TextOverflow.Ellipsis）。 */
+.title {
+  flex: 1;
+  min-width: 0;
+  /* 对齐 M3 TopAppBar 的 titleLarge（22sp）。 */
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--dsh-color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 居中标题（对齐 Android CenterAlignedTopAppBar）。 */
+.titleCentered {
+  justify-content: center;
+
+  .title {
+    flex: 0 1 auto;
+    text-align: center;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+/* 触摸目标尽量贴近安卓 IconButton 的 48dp：这条栏由 JS 写死高度（32-44px），
+   宽度给到 44px、高度用 max-height:100% 跟住实际行高（对齐 Android SettingsScreen
+   等页的默认 IconButton；栏高撑不下 48 时保住 44px 这条通用底线）。 */
+.iconButton {
+  width: 44px;
+  height: 44px;
+  max-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 22px;
+}
+
+/* 禁用只变淡、不撤掉槽位（对齐安卓 IconButton(enabled = false)）。 */
+.iconButtonOff {
+  opacity: 0.35;
+}
+
+.icon {
+  /* 对齐 M3 IconButton 内 24dp 图标。 */
+  font-size: 24px;
+  line-height: 1;
+  color: var(--dsh-color-text);
+}
+
+.textButton {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.textButtonLabel {
+  font-size: 14px;
+  color: var(--dsh-color-primary);
+}
+
+.label {
+  font-size: 14px;
+  color: var(--dsh-color-text-sub);
+  flex-shrink: 0;
+  padding: 0 2px;
+}
+
+/* 标题位的输入：一行、无边框、无背景，只有字（对齐安卓 BasicTextField）。 */
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 28px;
+  color: var(--dsh-color-text);
+  background: transparent;
+  border: none;
+}
+
+.searchPlaceholder {
+  color: var(--dsh-color-text-sub);
+  font-size: 16px;
+}

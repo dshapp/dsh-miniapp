@@ -1,0 +1,222 @@
+@use '../../../node_modules/@nutui/nutui-react-taro/dist/styles/variables' as *;
+@use '../../styles/vars' as dsh;
+
+.page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  box-sizing: border-box;
+  background: var(--dsh-color-bg);
+  overflow: hidden;
+}
+
+/* 顶栏、标题、查找输入与命中计数都归 ui/navBar.tsx 管，这里不再重复一套。 */
+
+// 子智能体会话：一条常驻提示 + 回父会话的入口。
+.subagentBar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--dsh-color-bg);
+  flex-shrink: 0;
+}
+
+.subagentText {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--dsh-color-text-sub);
+}
+
+.subagentBack {
+  font-size: 12px;
+  color: var(--dsh-color-primary);
+  padding-left: 12px;
+}
+
+/* 转写区：占满整宽；轮次菜单是盖在它上面的浮层，不再挤压正文宽度。 */
+.transcriptWrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.transcript {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 12px 16px;
+  box-sizing: border-box;
+}
+
+/* 宽屏（平板/桌面微信）转写列限宽居中，一行不至于拉得太长
+   （对齐 Android LazyColumn 的 widthIn(max = Dimens.columnMaxWidth)）。 */
+.transcriptInner {
+  display: flex;
+  flex-direction: column;
+  /* 行间距（对齐 Android ChatScreen.kt:429 spacedBy(rowSpacing = 4dp)）。 */
+  gap: 4px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.earlierRow {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.earlierText {
+  font-size: 13px;
+  color: var(--dsh-color-primary);
+}
+
+.earlierLoading {
+  font-size: 18px;
+  line-height: 22px;
+  color: var(--dsh-color-text-faint);
+}
+
+/* 行间距只用父容器的 gap 表达（对齐 Android ChatScreen.kt:429 的 spacedBy(rowSpacing)），
+   末行不会再白占一段 margin。 */
+.row {
+  border-radius: 8px;
+}
+
+// 当前停靠的命中行整行铺一层底色（对齐 Android 的 DshFind.activeRow）。
+.rowActive {
+  /* 与命中字同色系的橙色淡铺（对齐 Android activeRow = 0x33FF9632）。 */
+  background: rgba(255, 150, 50, 0.2);
+}
+
+.center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 24px;
+}
+
+/* 空态/历史失败态的图标：对齐 Android EmptyState / ChatScreen 的 40dp outline 图标。 */
+.loadingGlyph {
+  font-size: 40px;
+  line-height: 44px;
+  color: var(--dsh-color-outline);
+}
+
+.emptyTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--dsh-color-text);
+}
+
+.emptyBody {
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+  text-align: center;
+}
+
+.retry {
+  font-size: 14px;
+  color: var(--dsh-color-primary);
+  padding: 4px 12px;
+}
+
+/* 「回到最新」：对齐 Android SmallFloatingActionButton 的 BottomEnd + 16dp 内边距。 */
+.toBottom {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  background: var(--dsh-color-card);
+  border: 1px solid var(--dsh-color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.toBottomGlyph {
+  font-size: 20px;
+  color: var(--dsh-color-primary);
+}
+
+/*
+ * 轮次菜单：顶栏按钮唤出的浮层（安卓是锚定在按钮下方的 DropdownMenu）。
+ * 不能常驻右侧——那会压缩转写宽度。浮层盖在正文之上，选完即关。
+ */
+.railOverlay {
+  position: absolute;
+  top: 0;
+  /* 必须铺满整个正文区：没有 left 时浮层只有卡片那么宽（shrink-to-fit），
+     点卡片左侧的空白根本落不到浮层上，下拉就关不掉。 */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  /* 顶部对齐：不能用默认的 stretch——那会把下拉卡片拉满整条浮层高度，
+     只有几轮时下面就是一大片空白。卡片高度交给内容，上限由 .rail 的 max-height 兜。 */
+  align-items: flex-start;
+}
+
+/* 顶栏下方的下拉卡片（对齐 Android 锚定在动作按钮下的 DropdownMenu）：圆角 + 阴影 +
+   高度上限，而不是通高侧栏。 */
+.rail {
+  width: 280px;
+  max-width: 78vw;
+  max-height: 60vh;
+  margin: 4px 8px 0 8px;
+  padding: 6px;
+  box-sizing: border-box;
+  background: var(--dsh-color-card);
+  border: 1px solid var(--dsh-color-border);
+  border-radius: var(--dsh-radius-card);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+.railRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px;
+  border-radius: 6px;
+}
+
+.railRowActive {
+  background: var(--dsh-color-bg);
+}
+
+.railGlyph {
+  /* 对齐 Android ChatScreen.kt:349 的 Modifier.size(18.dp)。 */
+  width: 18px;
+  font-size: 16px;
+  line-height: 18px;
+  text-align: center;
+  color: var(--dsh-color-text-sub);
+  flex-shrink: 0;
+}
+
+.railText {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--dsh-color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 忙时整列置灰且不可点（对齐 Android DropdownMenu 的 enabled = railBusyTurn == null）。 */
+.railRowBusy {
+  opacity: 0.5;
+  pointer-events: none;
+}

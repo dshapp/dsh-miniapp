@@ -1,0 +1,67 @@
+/* 锚定动作菜单：遮罩只负责接「点外面关闭」，本身不画任何东西。 */
+.overlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 950;
+}
+
+/* 对齐安卓 DropdownMenu 的容器：M3 surface、4dp 圆角、2 级阴影。 */
+.menu {
+  position: fixed;
+  padding: 4px 0;
+  background: var(--dsh-color-card);
+  border-radius: 4px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+}
+
+/* 菜单项 44px 高（安卓 DropdownMenuItem 的最小触达高度）、16dp 图标槽。 */
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 0 16px;
+}
+
+.rowDisabled {
+  opacity: 0.38;
+}
+
+.glyph {
+  flex-shrink: 0;
+  width: 18px;
+  font-size: 18px;
+  line-height: 18px;
+  text-align: center;
+  color: var(--dsh-color-on-surface-variant);
+}
+
+.glyphDanger {
+  color: var(--dsh-color-bad);
+}
+
+.glyphChecked {
+  color: var(--dsh-color-primary);
+}
+
+/* 既没图标也没勾选：留空槽位，标签仍与其它项对齐。 */
+.glyphHidden {
+  visibility: hidden;
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--dsh-color-text);
+}
+
+.labelDanger {
+  color: var(--dsh-color-bad);
+}

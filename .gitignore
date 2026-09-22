@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.icon-cache/
+.swc/
+.npm-cache/
+.DS_Store
+*.log
+
+# 本地环境变量（appid / 展示名 / 主机地址），按 .env.example 自建
+.env
+# 开发者工具的本机设置
+project.private.config.json

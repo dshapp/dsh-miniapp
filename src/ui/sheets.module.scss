@@ -1,0 +1,791 @@
+@use '../../node_modules/@nutui/nutui-react-taro/dist/styles/variables' as *;
+@use '../styles/vars' as dsh;
+
+// 底部弹层的公共壳：遮罩 + 面板 + 可滚正文。
+.backdrop {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 900;
+  background: rgba(0, 0, 0, 0.42);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.sheet {
+  width: 100%;
+  max-height: 78vh;
+  background: var(--dsh-color-card);
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.handle {
+  width: 36px;
+  height: 4px;
+  margin: 8px auto 0;
+  border-radius: 2px;
+  background: var(--dsh-color-border);
+  flex-shrink: 0;
+}
+
+/* 标题栏：有标题才画（无标题弹层对齐 Android 直接铺内容，见 Sheet 的 showHeader）。 */
+.sheetHeader {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--dsh-color-border);
+  flex-shrink: 0;
+}
+
+/* 固定头部插槽：在滚动区之外（对齐 Android 提问弹层的问题头 / 计划评审标题）。 */
+.sheetHeaderFixed {
+  flex-shrink: 0;
+  padding: 4px 16px 0;
+}
+
+/* 固定底部插槽：在滚动区之外，长正文滚不走操作区（对齐 Android 底部按钮列）。 */
+.sheetFooter {
+  flex-shrink: 0;
+  padding: 4px 16px 20px;
+  border-top: 1px solid var(--dsh-color-border);
+}
+
+.sheetTitle {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dsh-color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sheetClose {
+  padding: 4px 6px;
+  font-size: 16px;
+  color: var(--dsh-color-text-sub);
+}
+
+/*
+ * 正文滚动区：flex 收缩到面板剩余高度（min-height:0 才允许被压缩）。
+ * 固定 header/footer 后，弹层高度由 .sheet 的 max-height 兜住，正文只占中间一段。
+ */
+.sheetBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 8px 16px 28px;
+  box-sizing: border-box;
+}
+
+// —— 通用行 ————————————————————————————————————————————————
+
+.sectionTitle {
+  display: block;
+  margin: 12px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dsh-color-text-faint);
+}
+
+.listRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--dsh-color-border);
+}
+
+.listRowLast {
+  border-bottom: none;
+}
+
+.rowGlyph {
+  width: 18px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--dsh-color-text-faint);
+  flex-shrink: 0;
+}
+
+.rowTitle {
+  flex: 1;
+  /* flex 子项默认不肯缩到内容宽度以下：少了这一句，长标题会把行尾的状态顶出行外
+     （后台任务那行的「running」就是这么被裁掉的），而不是自己省略。 */
+  min-width: 0;
+  font-size: 14px;
+  color: var(--dsh-color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 主标题 + 副标题的两行列（后台任务、产物）：占满剩余宽度，自己负责截断。 */
+.rowTextColumn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.rowMeta {
+  font-size: 12px;
+  color: var(--dsh-color-text-faint);
+  flex-shrink: 0;
+}
+
+.rowDetail {
+  font-size: 12px;
+  color: var(--dsh-color-text-sub);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.todoDone {
+  color: var(--dsh-color-good);
+}
+
+.todoActive {
+  color: var(--dsh-color-primary);
+}
+
+.todoPending {
+  color: var(--dsh-color-warning);
+}
+
+// —— 上下文占用 ————————————————————————————————————————————
+
+.occupancyRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.ring {
+  width: 64px;
+  height: 64px;
+  border-radius: 32px;
+  border: 4px solid var(--dsh-color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ringWarn {
+  border-color: var(--dsh-color-warning);
+}
+
+.ringBad {
+  border-color: var(--dsh-color-bad);
+}
+
+.ringPercent {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dsh-color-text);
+}
+
+.occupancyInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.occupancyLine {
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+}
+
+.occupancyPercent {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dsh-color-text);
+  margin: 0 2px;
+}
+
+/* 右侧「~used / window」在安卓是 titleSmall 正文色，不是最浅的次级灰（Sheets.kt:307-320）。 */
+.occupancySub {
+  font-size: 14px;
+  color: var(--dsh-color-text);
+}
+
+.barTrack {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--dsh-color-border);
+  margin: 6px 0;
+}
+
+.barSeg {
+  height: 4px;
+}
+
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+/* 图例色块 8px（对齐 Android Sheets.kt:373-377 的 size(8.dp)）。 */
+.legendSwatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.legendLabel {
+  flex: 1;
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+}
+
+.legendValue {
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+}
+
+.divider {
+  height: 1px;
+  background: var(--dsh-color-border);
+  margin: 10px 0;
+}
+
+.detailRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.detailLabel {
+  flex: 1;
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.detailValue {
+  font-size: 13px;
+  color: var(--dsh-color-text);
+}
+
+/* section 行：label 用 titleSmall，右侧 value 照常渲染（对齐 Android DetailRow，D-03）。 */
+.detailRowSection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  padding-bottom: 3px;
+}
+
+.detailLabelSection {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dsh-color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+// —— 模型选择 ——————————————————————————————————————————————
+
+/*
+ * 模型/思考强度页签：等宽两栏 + 选中下划线，对齐 Android 的 Material TabRow
+ *（Sheets.kt:60-64；安卓没有胶囊按钮形态）。
+ */
+.tabRow {
+  display: flex;
+  border-bottom: 1px solid var(--dsh-color-border);
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 0 0;
+}
+
+.tabLabel {
+  font-size: 14px;
+  color: var(--dsh-color-text-sub);
+}
+
+.tabActive .tabLabel {
+  font-weight: 600;
+  color: var(--dsh-color-text);
+}
+
+/* 选中指示器：2px 下划线，宽度铺满该栏。 */
+.tabIndicator {
+  width: 100%;
+  height: 2px;
+  background: var(--dsh-color-primary);
+}
+
+/* 分组标题：labelLarge + onSurfaceVariant，上下 8px（Sheets.kt:87-92；左右 16px 由弹层内边距给）。 */
+.modelGroupTitle {
+  display: block;
+  padding: 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dsh-color-on-surface-variant);
+}
+
+/* 每行对齐 Material ListItem 的单行高度（Sheets.kt:97-112）。 */
+.modelRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  border-bottom: 1px solid var(--dsh-color-border);
+}
+
+/* 加载态：160dp 高容器里居中转圈（对齐 Android Sheets.kt:72-76）。 */
+.loadingBox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 160px;
+}
+
+.loadingSpinner {
+  font-size: 26px;
+  color: var(--dsh-color-primary);
+}
+
+.modelName {
+  flex: 1;
+  font-size: 14px;
+  color: var(--dsh-color-text);
+}
+
+.modelCheck {
+  color: var(--dsh-color-primary);
+  font-size: 16px;
+}
+
+// —— 归档 ——————————————————————————————————————————————————
+
+.archiveRow {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  border-bottom: 1px solid var(--dsh-color-border);
+}
+
+.archiveTitle {
+  flex: 1;
+  font-size: 14px;
+  color: var(--dsh-color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 恢复入口：文字按钮贴着行尾，点击区域靠 padding 撑开。 */
+.archiveRestore {
+  flex-shrink: 0;
+  padding: 6px 4px 6px 14px;
+  font-size: 14px;
+  color: var(--dsh-color-primary);
+}
+
+// —— 文件预览 ——————————————————————————————————————————————
+// 文件预览现在是全屏详情弹层（对齐 Android CardDetailDialog），下面这些样式服务于
+// 详情层正文里的分页内容。
+
+.fileText {
+  display: block;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dsh-color-text);
+  /*
+   * 安卓 MonospaceBlock 不换行、横向滚动（Cards.kt:353-366）；这里保留自动换行，
+   * 因为详情层正文是纵向 ScrollView，纯 CSS 的横向滚动在部分端不生效。
+   * 这是有意的平台取舍，详见第三轮审计 D-24。
+   */
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.fileNotice {
+  display: block;
+  padding: 10px 0;
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+}
+
+.fileLoading {
+  display: block;
+  padding: 10px 0;
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+}
+
+.fileMore {
+  display: block;
+  margin: 12px 0 0;
+  padding: 10px;
+  text-align: center;
+  border-radius: 8px;
+  background: var(--dsh-color-bg);
+  font-size: 13px;
+  color: var(--dsh-color-primary);
+}
+
+// —— 审批 ——————————————————————————————————————————————————
+
+/* 审批标题：正文第一行、titleMedium（对齐 Android Sheets.kt:565，不再放进底部弹层标题栏）。 */
+.approvalTitle {
+  display: block;
+  padding: 4px 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--dsh-color-text);
+}
+
+.approvalText {
+  display: block;
+  font-size: 13px;
+  color: var(--dsh-color-text);
+  line-height: 1.5;
+}
+
+.approvalTool {
+  display: block;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--dsh-color-text-faint);
+}
+
+.monoBlock {
+  display: block;
+  padding: 8px;
+  margin: 8px 0;
+  border-radius: 8px;
+  background: var(--dsh-color-bg);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--dsh-color-text);
+  /*
+   * 安卓的 MonospaceBlock 是「不换行 + 横向滚动」（Cards.kt:353-366）。小程序这里保留
+   * 自动换行：横向滚动需要把 Text 包进 scroll-view 才能在各端稳定生效，纯 CSS 的
+   * overflow-x 在部分端不生效。属登记过的平台取舍（第三轮审计 D-17）。
+   */
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.buttonRow {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.primaryButton {
+  flex: 1;
+  padding: 11px 0;
+  text-align: center;
+  border-radius: 10px;
+  background: var(--dsh-color-primary);
+  color: #ffffff;
+  font-size: 14px;
+}
+
+/* 审批的「拒绝」：安卓那颗 OutlinedButton 显式染 error 色（Sheets.kt:596）。 */
+.outlineButton {
+  flex: 1;
+  padding: 11px 0;
+  text-align: center;
+  border-radius: 10px;
+  border: 1px solid var(--dsh-color-border);
+  color: var(--dsh-color-bad);
+  font-size: 14px;
+}
+
+/*
+ * 计划评审的「修改」：安卓是默认配色的 OutlinedButton（Sheets.kt:817-825），
+ * 属中性次要动作，不是危险动作——红色会把语义抬成「拒绝」。
+ */
+.outlineButtonNeutral {
+  flex: 1;
+  padding: 11px 0;
+  text-align: center;
+  border-radius: 10px;
+  border: 1px solid var(--dsh-color-border);
+  color: var(--dsh-color-primary);
+  font-size: 14px;
+}
+
+/*
+ * 真禁用态：灰底 + 淡字，整体降到 0.5，读起来就是「现在点不了」，
+ * 对齐 Android Button(enabled = false) 的 M3 置灰（Sheets.kt:772-775，D-20）。
+ */
+.disabledButton {
+  flex: 1;
+  padding: 11px 0;
+  text-align: center;
+  border-radius: 10px;
+  background: var(--dsh-color-surface-variant);
+  color: var(--dsh-color-on-surface-variant);
+  font-size: 14px;
+  opacity: 0.5;
+}
+
+// —— 提问 ——————————————————————————————————————————————————
+
+.questionHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.questionHeaderText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.questionKicker {
+  font-size: 12px;
+  color: var(--dsh-color-text-faint);
+}
+
+.questionText {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dsh-color-text);
+  line-height: 1.4;
+}
+
+.optionRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--dsh-color-border);
+}
+
+/*
+ * 选项控件：自绘的复选/单选，观感贴近 Android 真实 Checkbox / RadioButton
+ *（Sheets.kt:695-702）。方形给多选、圆形给单选；选中时用主色描边/填充。
+ */
+.optionMark {
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--dsh-color-outline);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.optionMarkRound {
+  border-radius: 9px;
+}
+
+.optionMarkOn {
+  border-color: var(--dsh-color-primary);
+}
+
+.optionMarkFilled {
+  background: var(--dsh-color-primary);
+  border-color: var(--dsh-color-primary);
+}
+
+.optionMarkGlyph {
+  font-size: 12px;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.optionMarkDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--dsh-color-primary);
+}
+
+.optionText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* 选项文字与推荐标签同一行（对齐 Android headline 里的 Row）。 */
+.optionHeadline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.optionLabel {
+  font-size: 14px;
+  color: var(--dsh-color-text);
+}
+
+.optionDesc {
+  font-size: 12px;
+  color: var(--dsh-color-text-sub);
+}
+
+.optionTag {
+  font-size: 11px;
+  color: var(--dsh-color-on-surface-variant);
+}
+
+.detailText {
+  display: block;
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+  line-height: 1.5;
+  padding: 4px 0;
+}
+
+/* 常驻字段 label：替掉只在空值时可见的 placeholder（对齐 Android OutlinedTextField，D-19）。 */
+.fieldLabel {
+  display: block;
+  padding: 10px 0 2px;
+  font-size: 12px;
+  color: var(--dsh-color-on-surface-variant);
+}
+
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 8px;
+  margin-top: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--dsh-color-border);
+  font-size: 14px;
+  color: var(--dsh-color-text);
+}
+
+.errorText {
+  display: block;
+  padding: 6px 0;
+  font-size: 12px;
+  color: var(--dsh-color-bad);
+}
+
+.questionFooter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+/* 把「进度」与右侧的跳过/提交顶开（对齐 Android Row 里的 Spacer(weight(1f))）。 */
+.footerSpacer {
+  flex: 1;
+}
+
+.stepButton {
+  padding: 6px 10px;
+  font-size: 14px;
+  color: var(--dsh-color-text-sub);
+}
+
+.stepButtonOff {
+  color: var(--dsh-color-text-faint);
+}
+
+.stepCount {
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+}
+
+/* 安卓的 TextButton 默认就是主色（Sheets.kt:768-771、813-816），不是弱化的灰字。 */
+.textButton {
+  padding: 10px 8px;
+  font-size: 14px;
+  color: var(--dsh-color-primary);
+}
+
+/* 提交中：与 Android `enabled = !busy` 的置灰观感一致。 */
+.buttonOff {
+  opacity: 0.5;
+}
+
+/* 计划评审标题：固定在弹层头部（对齐 Android Sheets.kt:794-798 的 titleMedium）。 */
+.planHeader {
+  display: block;
+  padding: 12px 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--dsh-color-text);
+}
+
+.planBody {
+  display: block;
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--dsh-color-text);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 切换模型期间整块变暗（对齐 Android selecting 时 alpha(0.5)）。 */
+.modelListBusy {
+  opacity: 0.5;
+}
+
+/* 切换模型期间连点击一起收掉（禁滚见 Sheet 的 scrollLocked）。 */
+.modelListLock {
+  pointer-events: none;
+}
+
+/* 列表行右侧的次级动作图标（产物行的站内预览；安卓整行只有 openOnHost）。 */
+.rowAction {
+  padding: 4px 6px;
+  font-size: 14px;
+  color: var(--dsh-color-text-faint);
+  flex-shrink: 0;
+}
+
+/* 会话面板行的尾部图标（对齐 Android ListItem 的 trailing）。 */
+.rowTrailingGroup {
+  margin-left: auto;
+  /* 状态永远完整可见：被标题挤掉就失去意义了。 */
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rowTrailing {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--dsh-color-text-faint);
+}
