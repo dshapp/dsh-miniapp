@@ -120,6 +120,7 @@ interface WxApi {
     editable?: boolean;
     placeholderText?: string;
     success?: (res: { confirm: boolean; cancel: boolean; content?: string }) => void;
+    fail?: (error: unknown) => void;
   }): void;
   showActionSheet(options: { itemList: string[]; success?: (res: { tapIndex: number }) => void; fail?: (error: unknown) => void }): void;
   setKeepScreenOn(options: { keepScreenOn: boolean }): void;

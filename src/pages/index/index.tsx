@@ -283,7 +283,7 @@ export default function SessionListPage(): JSX.Element {
       return;
     }
     if (key === 'pin') {
-      sessionListStore.setPinned(summary.sessionId, !pinnedIds.includes(summary.sessionId));
+      void model.setPinned(summary.sessionId, !pinnedIds.includes(summary.sessionId));
       return;
     }
     if (key === 'rename') {

@@ -282,7 +282,6 @@ export interface WorkspaceOrderValue { workspaceIds: WorkspaceId[] }
 
 export interface AgentPresetEntry {
   id: string;
-  trust: string;
   isDefault: boolean;
   name?: string;
   description?: string;
@@ -296,9 +295,18 @@ export interface AgentPresetEntry {
  */
 export interface AgentPresetListValue {
   presets: AgentPresetEntry[];
-  authorable: boolean;
-  hasDocument: boolean;
   modeSelectionEnabled: boolean;
+}
+
+/** 随 DSH 发布的预设 id（0.1.7 把 `code` 改名成 `ptc`）。 */
+export const BUILT_IN_AGENT_PRESET_IDS: readonly string[] = ['standard', 'ptc', 'minimal', 'cordis'];
+
+/**
+ * 是否内置预设（对齐主机 isBuiltInPreset / Mac `isBuiltIn`）：内置预设不发布 name，
+ * 自己带 name 的声明即便 id 撞上内置 id，也按用户预设处理、文案用它自己的。
+ */
+export function agentPresetIsBuiltIn(preset: AgentPresetEntry): boolean {
+  return preset.name === undefined && BUILT_IN_AGENT_PRESET_IDS.includes(preset.id);
 }
 
 // 命令与 skills ————————————————————————————————————————————————
@@ -325,6 +333,8 @@ export interface JobView {
   label: string;
   status: JobStatus;
   detail?: string;
+  /** 0.1.7：生产方的实时进度行（`3/10`、当前阶段），结束时清空。 */
+  progress?: string;
   startedAt: number;
   finishedAt?: number;
 }
@@ -335,7 +345,8 @@ export function jobIsLive(job: JobView): boolean {
 
 // 子智能体 ————————————————————————————————————————————————————
 
-export type SubagentMode = 'one-shot' | 'continuable';
+/** `unknown` 是 0.1.7 迁移补出来的目录项：只能浏览，不能继续对话。 */
+export type SubagentMode = 'one-shot' | 'continuable' | 'unknown';
 
 export interface SubagentListEntry {
   sessionId: SessionId;

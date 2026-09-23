@@ -36,6 +36,14 @@ class SessionListStore {
 
   selectedSessionId?: SessionId;
 
+  /**
+   * 置顶集合是不是由主机维护（0.1.7 的 workspace/pinSession）。
+   *
+   * 一旦 workspace/follow 基线带来 pinnedSessionIds，置顶就以主机为准：不再写本机存储，
+   * 顺序也照主机的「最近置顶在前」。老主机没有这个字段，继续用本机置顶。
+   */
+  private hostPins = false;
+
   /** 判定「要不要弹」是通知中心的事，这里只负责把运行→停止的边沿交出去。 */
   onCompleted?: (sessionId: SessionId) => void;
 
@@ -234,7 +242,7 @@ class SessionListStore {
     kinds.delete(sessionId);
     this.awaitingUserKindsStore.set(kinds);
     this.draftSessionIdsStore.set(new Set(Array.from(this.draftSessionIdsStore.get()).filter(id => id !== sessionId)));
-    if (this.pinnedSessionIds.has(sessionId)) this.setPinned(sessionId, false);
+    if (!this.hostPins && this.pinnedSessionIds.has(sessionId)) this.setPinned(sessionId, false);
   }
 
   recordActivity(sessionId: SessionId, updatedAt: number): void {
@@ -300,6 +308,19 @@ class SessionListStore {
     this.projectionSeqCache = seqs;
   }
 
+  get pinsOwnedByHost(): boolean {
+    return this.hostPins;
+  }
+
+  /** 主机落定的置顶集合整体替换（基线、pinned 帧、pin/unpin 应答）。 */
+  applyHostPinned(ids: SessionId[]): void {
+    this.hostPins = true;
+    const current = this.pinnedSessionOrderStore.get();
+    if (current.length === ids.length && current.every((id, index) => id === ids[index])) return;
+    this.pinnedSessionOrderStore.set(ids);
+  }
+
+  /** 本机置顶（老主机）。主机维护置顶时由 AppModel.setPinned 走 RPC，不经这里。 */
   setPinned(sessionId: SessionId, pinned: boolean): void {
     const current = this.pinnedSessionOrderStore.get();
     const next = pinned

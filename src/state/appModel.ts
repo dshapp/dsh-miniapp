@@ -42,7 +42,10 @@ import {
   permissionCatalog,
   skillList,
   subagentInterrupt,
-  subagentList,
+  subagentCatalog,
+  jobKill,
+  workspaceSetPinned,
+  SESSION_ACTIVE_ERROR,
   subagentPrompt,
   workspaceArchiveSession,
   workspaceFileRead,
@@ -257,7 +260,8 @@ export class AppModel {
           this.lastErrorStore.set(Strings.sessionGone);
         }
       },
-            sessionsArchivedHandler: sessionIds => {
+      pinnedHandler: sessionIds => sessionListStore.applyHostPinned(sessionIds),
+      sessionsArchivedHandler: sessionIds => {
         // 归档集合是「渲染时过滤」的唯一依据：两个 store 都要同步，否则主机推来的
         // workspace 归档帧只更新了 workspaceStore，列表侧镜像还留着旧的（对齐 Android
         // PhoneModel.handleSessionsArchived 同时写两侧）。
@@ -743,7 +747,15 @@ export class AppModel {
    */
   async archiveSession(sessionId: SessionId): Promise<void> {
     try {
-      const archived = await workspaceArchiveSession(this.requireTransport(), sessionId);
+      let archived: SessionId[];
+      try {
+        archived = await workspaceArchiveSession(this.requireTransport(), sessionId);
+      } catch (error) {
+        // 0.1.7：会话里还有任务在跑时主机拒绝归档。问一次用户，确认后让主机先停再归档。
+        if (!(error instanceof ApiException) || error.code !== SESSION_ACTIVE_ERROR) throw error;
+        if (!(await this.confirmStopActivity())) return;
+        archived = await workspaceArchiveSession(this.requireTransport(), sessionId, true);
+      }
       workspaceStore.setArchived(archived);
       // 本地这一次归档掉它的运行时 store：名册行留着给归档页，但没人在看的会话流
       // 没必要继续挂着（再打开时会重新 open() 建回来）。
@@ -753,6 +765,19 @@ export class AppModel {
     } catch (error) {
       this.lastErrorStore.set(describe(error));
     }
+  }
+
+  private confirmStopActivity(): Promise<boolean> {
+    return new Promise(resolve => {
+      wx.showModal({
+        title: Strings.archiveActiveTitle,
+        content: Strings.archiveActiveBody,
+        confirmText: Strings.archiveActiveConfirm,
+        cancelText: Strings.cancel,
+        success: result => resolve(result.confirm),
+        fail: () => resolve(false),
+      });
+    });
   }
 
   /** 正在取消归档的会话：归档页据此显示行内进度并挡重复点击（对齐 Android unarchivingIds）。 */
@@ -1074,8 +1099,58 @@ export class AppModel {
     return sessionReferenceCandidates(this.requireTransport(), sessionId, query);
   }
 
+  /**
+   * 父会话的直接子代理（0.1.7：session/projections 的 subagentCatalog）。
+   *
+   * 目录本身不带运行状态，从会话名册里对应子会话的摘要补上；读取失败时给空目录，
+   * 面板只是不画这一节，而不是整张面板报错。
+   */
   async loadSubagents(parentSessionId: SessionId) {
-    return subagentList(this.requireTransport(), parentSessionId);
+    try {
+      const value = await subagentCatalog(this.requireTransport(), parentSessionId);
+      const byId = sessionListStore.sessionsById;
+      const parents = new Set(sessionListStore.sessions.map(summary => summary.parentSessionId));
+      return {
+        ...value,
+        entries: value.entries.map(entry => ({
+          ...entry,
+          running: byId.get(entry.sessionId)?.running ?? this.sessions.get(entry.sessionId)?.running ?? false,
+          hasChildren: parents.has(entry.sessionId),
+        })),
+      };
+    } catch (error) {
+      this.lastErrorStore.set(describe(error));
+      return { entries: [], parentAvailable: false };
+    }
+  }
+
+  /** 替用户停掉一个后台任务（0.1.7 的 job/kill）；列表由 job/list 流自己刷新。 */
+  async killJob(sessionId: SessionId, jobId: string): Promise<void> {
+    try {
+      await jobKill(this.requireTransport(), sessionId, jobId);
+    } catch (error) {
+      this.lastErrorStore.set(describe(error));
+    }
+  }
+
+  /**
+   * 置顶 / 取消置顶。
+   *
+   * 0.1.7 的主机维护全局置顶集合：走 workspace/pinSession / unpinSession，应答就是落定后的
+   * 集合，直接落库（其他端的改动由 workspace/follow 的 pinned 帧推来）。老主机没有这个概念，
+   * 仍记在本机。
+   */
+  async setPinned(sessionId: SessionId, pinned: boolean): Promise<void> {
+    if (!sessionListStore.pinsOwnedByHost) {
+      sessionListStore.setPinned(sessionId, pinned);
+      return;
+    }
+    try {
+      const ids = await workspaceSetPinned(this.requireTransport(), sessionId, pinned);
+      sessionListStore.applyHostPinned(ids);
+    } catch (error) {
+      this.lastErrorStore.set(describe(error));
+    }
   }
 
   // —— 审批与提问 ————————————————————————————————————————————

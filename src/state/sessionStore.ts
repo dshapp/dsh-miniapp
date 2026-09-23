@@ -534,12 +534,14 @@ function contextProvenance(source: JsonElement | undefined): [role: string, labe
       return ['recall', collect('references', 'label') ?? kind];
     case 'agent-instructions':
       return ['inject', collect('changes', 'path') ?? kind];
+    // 0.1.6 及更早的 {kind:'plugin', plugin}；0.1.7 取消了这个 kind，由生产方自报。
     case 'plugin':
       return ['inject', str(jget(source, 'plugin')) ?? kind];
     case 'skill-invocation':
       return ['inject', str(jget(source, 'name')) ?? kind];
     default:
-      return ['inject', kind];
+      // v4 迁移把未知插件来源改写成 'plugin:<名字>'，标签只留名字。
+      return ['inject', kind.startsWith('plugin:') ? kind.slice('plugin:'.length) : kind];
   }
 }
 
@@ -1523,8 +1525,10 @@ export class SessionStore {
     const rpcId = str(jget(source, 'rpcId'));
     if (rpcId !== undefined) this.retirePendingSubmission(rpcId);
     if (this.isReplacementSurface(event)) return;
-    if (str(jget(source, 'plugin')) === 'compact') return;
     const sourceKind = str(jget(source, 'kind')) ?? 'user';
+    // 压缩检查点不进转写：0.1.7 起它自报 kind:'compact-checkpoint'（v4 迁移把旧日志也改写成这样），
+    // 0.1.6 及更早是 {kind:'plugin', plugin:'compact'}，两种都认。
+    if (sourceKind === 'compact-checkpoint' || str(jget(source, 'plugin')) === 'compact') return;
     if (sourceKind === 'session-reference') this.noteReferencedSessions(source);
     const kind = sourceKind === 'user' ? (this.claimedSteeringIds.has(id) ? 'steering' : 'user') : 'context';
     let node: ChatNode;
@@ -1776,20 +1780,24 @@ export class SessionStore {
     if (!isObject(data)) return;
     const message = data.message;
     if (!isObject(message)) return;
-    const callIdFromSource = str(jget(jget(message, 'source'), 'callId'));
+    // 0.1.7（日志 v4）的结果是 `role:'tool'` 消息：内容直接是块，`toolCallId` 与 `isError`
+    // 挂在消息上；tool-result 包装块只在 0.1.6 及更早的主机上出现，这里两种都认。
+    const toolCallId = str(message.toolCallId);
+    const callIdFromSource = str(jget(jget(message, 'source'), 'callId')) ?? toolCallId;
     if (callIdFromSource === undefined) return;
     const decoded = (arr(jget(message, 'content')) ?? []).map(decodeContentBlock);
     const wrappers = decoded.filter(
       (block): block is Extract<ContentBlock, { kind: 'tool-result' }> => block.kind === 'tool-result',
     );
     const content: ContentBlock[] = wrappers.length === 0 ? decoded : wrappers.flatMap(block => block.content);
-    const wrappedCallId = wrappers.length > 0 ? wrappers[0].toolCallId : callIdFromSource;
+    const wrappedCallId = toolCallId ?? (wrappers.length > 0 ? wrappers[0].toolCallId : callIdFromSource);
     const error = data.error === undefined ? undefined : decodeToolError(data.error);
     const result: ToolResultData = {
       seq: event.seq,
       time: event.time,
       content,
-      isError: error !== undefined || wrappers.some(block => block.isError),
+      // 没有 data.error 的失败（例如工具自己报的错）只在 message.isError 上。
+      isError: error !== undefined || bool(message.isError) === true || wrappers.some(block => block.isError),
       error,
       meta: data.meta,
       resultView: view !== undefined && view.for === 'result' ? view.view : undefined,

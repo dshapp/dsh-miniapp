@@ -236,6 +236,20 @@ export function SessionPanelSheet(props: {
     return [];
   }, [deliverablesRevision, stats, store]);
 
+  // 运行中的任务点一下可以停掉（0.1.7 的 job/kill）；已结束的行点了不做事。
+  const stopJob = (job: JobView): void => {
+    if (!jobIsLive(job)) return;
+    wx.showModal({
+      title: Strings.jobStopTitle,
+      content: job.label,
+      confirmText: Strings.jobStopConfirm,
+      cancelText: Strings.cancel,
+      success: result => {
+        if (result.confirm) void model.killJob(props.sessionId, job.id);
+      },
+    });
+  };
+
   const openSubagent = (entry: SubagentListEntry): void => {
     if (!entry.isChild) return;
     const child = model.ensureSession(entry.sessionId);
@@ -273,11 +287,13 @@ export function SessionPanelSheet(props: {
         <View>
           <SectionTitle text={Strings.jobs} />
           {jobs.map((job: JobView) => (
-            <View key={job.id} className={styles.listRow}>
+            <View key={job.id} className={styles.listRow} onClick={() => stopJob(job)}>
               {/* 尾部是「运行中转圈 + 状态码」，与 Android ListItem 的 trailing 一致。 */}
               <View className={styles.rowTextColumn}>
                 <Text className={styles.rowTitle}>{job.label}</Text>
-                {job.detail === undefined ? null : <Text className={styles.rowDetail}>{job.detail}</Text>}
+                {(job.progress ?? job.detail) === undefined
+                  ? null
+                  : <Text className={styles.rowDetail}>{job.progress ?? job.detail}</Text>}
               </View>
               <View className={styles.rowTrailingGroup}>
                 {jobIsLive(job) ? <Icon name='loader-circle' spin className={styles.rowTrailing} /> : null}

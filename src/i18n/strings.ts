@@ -199,6 +199,14 @@ const TABLE = {
   archivedSessions: ['Archived sessions', '已归档会话'],
   searchArchivedSessions: ['Search archived sessions', '搜索已归档会话'],
   unavailableArchivedSessions: ['No archived session here can be restored.', '这里没有可恢复的已归档会话。'],
+  archiveActiveTitle: ['Session is still working', '会话仍在运行'],
+  archiveActiveBody: [
+    'This session has running work. Stop it and archive the session?',
+    '这条会话还有任务在运行。要先停止这些任务再归档吗？',
+  ],
+  archiveActiveConfirm: ['Stop and archive', '停止并归档'],
+  jobStopTitle: ['Stop background job?', '停止后台任务？'],
+  jobStopConfirm: ['Stop', '停止'],
   unarchiveSession: ['Unarchive', '取消归档'],
   unarchiveSessionNamed: ['Unarchive %s', '取消归档 %s'],
   preview: ['Preview', '预览'],
@@ -323,9 +331,25 @@ const TABLE = {
   searchUnavailable: ['Content search is unavailable. Showing name matches.', '内容搜索暂不可用，仅显示名称匹配。'],
   searchHasMore: ['Showing the first %s results. Narrow your search.', '仅显示前 %s 条结果，请缩小搜索范围。'],
   presetStandardName: ['Standard mode', '标准模式'],
-  presetCodeName: ['Code mode', 'PTC 模式'],
+  presetStandardDescription: [
+    'Full coding agent with file editing, shell, file and web search, skills, planning, goals, subagents, and workflows.',
+    '功能完整的编码 Agent，支持文件编辑、Shell、文件与网页检索、Skills、计划、目标、子代理和工作流。',
+  ],
+  presetPtcName: ['PTC mode', 'PTC 模式'],
+  presetPtcDescription: [
+    'Includes all Standard mode capabilities. Better suited to tasks that call tools in batches and then filter, organize, deduplicate, count, or summarize the results.',
+    '包含标准模式的所有能力，更适合批量调用工具，并对结果进行筛选、整理、去重、统计或汇总的任务。',
+  ],
   presetMinimalName: ['Minimal mode', '极简模式'],
+  presetMinimalDescription: [
+    'Two-tool coding agent with persistent bash and str_replace_editor.',
+    '仅提供持久 bash 与 str_replace_editor 的双工具编码 Agent。',
+  ],
   presetCordisName: ['Creator mode', '创造模式'],
+  presetCordisDescription: [
+    'Built for creating custom agent presets, with all Standard mode capabilities plus runtime inspection, plugin experiments, and preset-authoring guidance.',
+    '用于创建自定义 Agent preset：具备标准模式的全部能力，并提供运行时检查、插件实验和 preset 创作指导。',
+  ],
   presetUserTrust: ['Custom', '自定义'],
 } as const satisfies Record<string, Entry>;
 

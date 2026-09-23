@@ -1,8 +1,16 @@
 import { fmt, getLocale, Strings } from '../i18n/strings';
 import { arr, firstLine, int, jget, str, type JsonElement } from './json';
 import { parseArgsMap } from './toolRow';
-import type { AgentPresetEntry, SessionId, SessionSearchItem, SessionSummary, SubagentListEntry, TokenUsage } from './types';
-import { isSubagentOrigin } from './types';
+import {
+  agentPresetIsBuiltIn,
+  isSubagentOrigin,
+  type AgentPresetEntry,
+  type SessionId,
+  type SessionSearchItem,
+  type SessionSummary,
+  type SubagentListEntry,
+  type TokenUsage,
+} from './types';
 import type { ChatNode } from './chatNode';
 
 // 轮次页脚格式化（与 iOS/web 同口径）——————————————————————————
@@ -448,18 +456,28 @@ export function turnDeliverablesFor(nodes: ChatNode[]): PresentedFile[] {
 export interface AgentPresetDisplayText { name: string; description?: string }
 
 export function agentPresetDisplayText(preset: AgentPresetEntry): AgentPresetDisplayText {
-  if (preset.trust === 'system') {
-    if (preset.id === 'standard') return { name: Strings.presetStandardName, description: preset.description };
-    if (preset.id === 'code') return { name: Strings.presetCodeName, description: preset.description };
-    if (preset.id === 'minimal') return { name: Strings.presetMinimalName, description: preset.description };
-    if (preset.id === 'cordis') return { name: Strings.presetCordisName, description: preset.description };
+  // 0.1.7：内置预设不再带 trust，也不发布 name/description，按 id 本地化（对齐 Mac isBuiltIn）。
+  if (agentPresetIsBuiltIn(preset)) {
+    switch (preset.id) {
+      case 'standard':
+        return { name: Strings.presetStandardName, description: preset.description ?? Strings.presetStandardDescription };
+      case 'ptc':
+        return { name: Strings.presetPtcName, description: preset.description ?? Strings.presetPtcDescription };
+      case 'minimal':
+        return { name: Strings.presetMinimalName, description: preset.description ?? Strings.presetMinimalDescription };
+      case 'cordis':
+        return { name: Strings.presetCordisName, description: preset.description ?? Strings.presetCordisDescription };
+      default:
+        break;
+    }
   }
   return { name: preset.name ?? preset.id, description: preset.description };
 }
 
+/** 非内置预设在选择器里追加「· 自定义」，不让它读起来像随 DSH 发布、经过审核的预设。 */
 export function agentPresetMenuLabel(preset: AgentPresetEntry): string {
   const { name } = agentPresetDisplayText(preset);
-  return preset.trust === 'user' ? `${name} · ${Strings.presetUserTrust}` : name;
+  return agentPresetIsBuiltIn(preset) ? name : `${name} · ${Strings.presetUserTrust}`;
 }
 
 // "(Recommended)" 后缀拆分 ——————————————————————————————————

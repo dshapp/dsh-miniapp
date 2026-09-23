@@ -87,7 +87,7 @@ scripts/build-icons.mjs                从 lucide 拉取图标、生成图标表
   由每个页面自己包一层；同时补上 `darkmode: true`（否则"跟随系统"恒为浅色）。
 
 **改动前请先跑 `npm test`**：`scripts/test/` 下的用例逐条移植自安卓的单元测试，
-是两端行为口径的回归闸（读数格式化、文件链接、图片协议、0.1.6 协议解码、未读红点、
+是两端行为口径的回归闸（读数格式化、文件链接、图片协议、0.1.6 / 0.1.7 协议解码、未读红点、
 分片搬运等）。
 
 对齐时遵循的几条约定：
@@ -220,11 +220,17 @@ Mock 的事件类型、字段名与投影容器一律照主机口径写（`user/
   开发者工具逐页实拍已验收，真机未验证。详见 [docs/CUSTOM-NAVBAR.md](docs/CUSTOM-NAVBAR.md)。
 - `npm test`（`node --test`）：**全绿**。用例逐条移植自安卓单测，覆盖读数格式化与非有限输入、
   占位符、相对时间、文件链接地址、图片扩展名、工具行畸形参数、本轮产出文件校验、归档与空白会话复用、
-  上下文摘要、失败轮次文案、目标条、工具结果配对、未读红点、0.1.6 协议解码、图片块协议、
+  上下文摘要、失败轮次文案、目标条、工具结果配对、未读红点、0.1.6 / 0.1.7 协议解码（含 multipart 二进制应答）、图片块协议、
   内容块编解码、分片搬运。
 - `npm run build:weapp`：**编译通过**，`dist/pages` 下六个页面齐全
   （index / chat / new / settings / pairing / archived；文件预览已并入聊天页的底部弹层，
   不再有独立的 preview 页）。
+- 适配 dsh 0.1.7-alpha.2（向下兼容 0.1.6）：工具结果按 `toolCallId`/`isError` 解 v4 的 `role:'tool'` 消息；
+  `compact-checkpoint` 不进转写；后台任务改订阅每会话的 `job/list` 流、可 `job/kill`；子代理目录改读
+  `session/projections` 的 `subagentCatalog`（`subagents/list` 已删，mode 多了 `unknown`）；预设按 id 判内置、
+  `code`→`ptc`；`workspaceFiles/readBytes` 改 `options.range` 且应答为 multipart 二进制（传输层还原成 base64）；
+  归档遇 `workspace/session-active` 先确认再 `stopActivity`；置顶改主机侧 `workspace/pinSession`。
+  这些 RPC/流的参数形状已对本机 0.1.7 主机逐条实测。
 - 微信开发者工具 + 本机 `dsh web`（0.1.6）实测：会话列表带真实标题与工作区分组、
   聊天页转写与用量、`workspace/changes` 改动卡与逐文件 diff、权限目录、归档恢复、
   `@` 文件链接都读的是主机真数据。

@@ -2,7 +2,8 @@
  * 消费唯一的多路下行，把每条逻辑流路由到各个 Store。
  *
  * 与 Android 的 StreamCoordinator 一一对应：连接期间常开三条流（$events /
- * workspace/follow / session/control），外加每个打开会话一条 session/follow。
+ * workspace/follow / session/control），外加每个打开会话一条 session/follow 与一条
+ * job/list（0.1.7 把后台任务从 session/control 拆成了独立的 `job` 命名空间）。
  * 每条流都以完整基线开场，所以"重连"等于"重新订阅"而不是"重新同步"。
  *
  * 移植时把 kotlinx.coroutines 的 scope.launch 换成 Promise，把 MuxStream 换成
@@ -15,6 +16,7 @@ import {
   decodeControlFrame,
   decodeFollowFrame,
   decodeInbox,
+  decodeJobListFrame,
   decodeRemoteEventFrame,
   decodeSessionSummary,
   decodeWorkspaceFrame,
@@ -176,6 +178,14 @@ export function sessionIdOfFollow(streamId: string): SessionId | undefined {
   return streamId.startsWith('follow:') ? streamId.slice('follow:'.length) : undefined;
 }
 
+export function jobsStreamId(sessionId: SessionId): string {
+  return `jobs:${sessionId}`;
+}
+
+export function sessionIdOfJobs(streamId: string): SessionId | undefined {
+  return streamId.startsWith('jobs:') ? streamId.slice('jobs:'.length) : undefined;
+}
+
 // Android 用 kotlinx @Serializable 生成提问项的解码；TS 侧没有对应模块，
 // 就地解一遍，避免为一个小结构再引一层依赖。
 function decodeAskUserQuestionItem(value: JsonElement | undefined): AskUserQuestionItem | undefined {
@@ -221,6 +231,8 @@ export interface StreamCoordinatorOptions {
   remoteEventHandler: (event: string) => void;
   sessionRemovedHandler: (sessionId: SessionId) => void;
   sessionsArchivedHandler: (sessionIds: SessionId[]) => void;
+  /** 0.1.7 的主机侧置顶集合（workspace/follow 基线与 pinned 帧），最近置顶的在前。 */
+  pinnedHandler?: (sessionIds: SessionId[]) => void;
   resyncHandler: () => void;
   gapRepairLoader: (address: SessionAddress, throughSeq: number) => Promise<SessionHistoryValue>;
   attentionHandler: (signal: AttentionSignal) => void;
@@ -258,6 +270,10 @@ export class StreamCoordinator {
    * （对齐 Android 的 inboxQueues）。
    */
   private readonly inboxQueues = new Map<SessionId, QueuedInboxItem[]>();
+  /**
+   * 0.1.6 及更早由 session/control 发布的任务镜像；0.1.7 起改由每会话的 job/list 流
+   * 整组替换，这里只留给老主机与「基线之后才建的 store」回灌用。
+   */
   private jobs = new Map<SessionId, JobView[]>();
   private readonly followAddresses = new Map<SessionId, SessionAddress>();
   private readonly assistantExpectations = new Map<SessionId, { attemptId: string; nextIndex: number }>();
@@ -333,6 +349,9 @@ export class StreamCoordinator {
       },
     };
     this.mux?.subscribe(followStreamId(sessionId), 'session/follow', args);
+    // 后台任务：0.1.7 的 job/list 首帧就是完整集合，之后每次生命周期变化再整组推一帧。
+    // 老主机没有这个命名空间，这条订阅会以 failure 结束，任务仍走 session/control。
+    this.mux?.subscribe(jobsStreamId(sessionId), 'job/list', { request: { sessionId } });
     return true;
   }
 
@@ -347,6 +366,7 @@ export class StreamCoordinator {
     this.followAddresses.delete(sessionId);
     this.assistantExpectations.delete(sessionId);
     this.mux?.unsubscribe(followStreamId(sessionId));
+    this.mux?.unsubscribe(jobsStreamId(sessionId));
   }
 
   /**
@@ -419,6 +439,11 @@ export class StreamCoordinator {
         this.handleControl(decodeControlFrame(value));
         break;
       default: {
+        const jobsSessionId = sessionIdOfJobs(streamId);
+        if (jobsSessionId !== undefined) {
+          this.handleJobList(jobsSessionId, value);
+          return;
+        }
         const sessionId = sessionIdOfFollow(streamId);
         if (sessionId === undefined) return;
         this.handleFollow(sessionId, decodeFollowFrame(value));
@@ -568,6 +593,7 @@ export class StreamCoordinator {
         // 归档集合的两侧镜像都要落：把 sets 里的 archivedSessionIds 只写进 workspaceStore
         // 的话，主列表渲染时读的列表侧镜像会在每次重连的基线之后被旧值覆盖回去。
         this.deps.sessionsArchivedHandler(frame.archivedSessionIds);
+        if (frame.pinnedSessionIds !== undefined) this.deps.pinnedHandler?.(frame.pinnedSessionIds);
         break;
       case 'upsert':
         this.deps.workspaceStore.upsert(frame.workspace);
@@ -581,6 +607,9 @@ export class StreamCoordinator {
       case 'archived':
         this.deps.workspaceStore.setArchived(frame.archivedSessionIds);
         this.deps.sessionsArchivedHandler(frame.archivedSessionIds);
+        break;
+      case 'pinned':
+        this.deps.pinnedHandler?.(frame.pinnedSessionIds);
         break;
       default:
         break;
@@ -640,6 +669,16 @@ export class StreamCoordinator {
       items: this.queues.get(store.sessionId) ?? this.inboxQueues.get(store.sessionId) ?? [],
     });
     store.setJobs({ sessionId: store.sessionId, jobs: this.jobs.get(store.sessionId) ?? [] });
+  }
+
+  // —— job/list ————————————————————————————————————————
+
+  private handleJobList(sessionId: SessionId, value: JsonElement): void {
+    if (this.removedSessionIds.has(sessionId)) return;
+    const jobs = decodeJobListFrame(value);
+    if (jobs === undefined) return;
+    this.jobs.set(sessionId, jobs);
+    this.deps.sessionLookup(sessionId)?.setJobs({ sessionId, jobs });
   }
 
   // —— session/follow ——————————————————————————————————

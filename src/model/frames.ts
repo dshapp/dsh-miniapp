@@ -139,11 +139,13 @@ export function decodeRemoteEventFrame(value: JsonElement | undefined): RemoteEv
 export interface WorkspaceArchivedItem { workspaceId: WorkspaceId; archivedSessionIds: SessionId[] }
 
 export type WorkspaceFollowFrame =
-  | { kind: 'baseline'; items: WorkspaceView[]; archivedSessionIds: SessionId[] }
+  /** `pinnedSessionIds` 是 0.1.7 新增的主机侧置顶集合；老主机不发时为 undefined。 */
+  | { kind: 'baseline'; items: WorkspaceView[]; archivedSessionIds: SessionId[]; pinnedSessionIds?: SessionId[] }
   | { kind: 'upsert'; workspace: WorkspaceView }
   | { kind: 'remove'; workspaceId: WorkspaceId }
   | { kind: 'order'; workspaceIds: WorkspaceId[] }
   | { kind: 'archived'; archivedSessionIds: SessionId[] }
+  | { kind: 'pinned'; pinnedSessionIds: SessionId[] }
   | { kind: 'unknown' };
 
 export function decodeWorkspaceFrame(value: JsonElement | undefined): WorkspaceFollowFrame {
@@ -157,6 +159,9 @@ export function decodeWorkspaceFrame(value: JsonElement | undefined): WorkspaceF
           .filter((item): item is WorkspaceView => item !== undefined),
         archivedSessionIds: (arr(jget(inner, 'archivedSessionIds')) ?? [])
           .map(str)
+          .filter((id): id is string => id !== undefined),
+        pinnedSessionIds: arr(jget(inner, 'pinnedSessionIds'))
+          ?.map(str)
           .filter((id): id is string => id !== undefined),
       };
     }
@@ -175,6 +180,13 @@ export function decodeWorkspaceFrame(value: JsonElement | undefined): WorkspaceF
       return {
         kind: 'archived',
         archivedSessionIds: (arr(jget(value, 'archivedSessionIds')) ?? [])
+          .map(str)
+          .filter((id): id is string => id !== undefined),
+      };
+    case 'pinned':
+      return {
+        kind: 'pinned',
+        pinnedSessionIds: (arr(jget(value, 'pinnedSessionIds')) ?? [])
           .map(str)
           .filter((id): id is string => id !== undefined),
       };
@@ -426,9 +438,21 @@ export function decodeJobView(value: JsonElement | undefined): JobView | undefin
     label: str(jget(value, 'label')) ?? '',
     status,
     detail: str(jget(value, 'detail')),
+    progress: str(jget(value, 'progress')),
     startedAt: dbl(jget(value, 'startedAt')) ?? 0,
     finishedAt: dbl(jget(value, 'finishedAt')),
   };
+}
+
+/**
+ * 0.1.7 `job/list` 流的一帧：`{type:'rows', jobs}`，是这条会话可见任务的完整集合
+ * （自己的任务加上所有无主任务），整组替换。其他 type 一律忽略。
+ */
+export function decodeJobListFrame(value: JsonElement | undefined): JobView[] | undefined {
+  if (str(jget(value, 'type')) !== 'rows') return undefined;
+  return (arr(jget(value, 'jobs')) ?? [])
+    .map(decodeJobView)
+    .filter((item): item is JobView => item !== undefined);
 }
 
 export function decodeToolEventView(value: JsonElement | undefined): ToolEventView | undefined {

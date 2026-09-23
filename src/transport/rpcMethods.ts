@@ -4,7 +4,7 @@ import type {
   AgentPresetListValue, CommandDescriptor, CommandExecutionValue, FileReferenceItem, GoalRef,
   SessionAddress, SessionCreateValue, SessionForkValue, SessionHistoryValue, SessionId, SessionListValue,
   SessionModelsValue, SessionPageValue, SessionReferenceItem, SessionSearchValue, SessionSelectModelValue,
-  SkillListValue, SubagentAddress, SubagentListEntry, SubagentListValue, SessionAttachmentValue,
+  SkillListValue, SubagentAddress, SubagentListEntry, SubagentListValue, SubagentMode, SessionAttachmentValue,
   WorkspaceFileBytesValue,
   WorkspaceFileTextValue, WorkspaceId, WorkspaceOrderValue, ModelCatalogValue,
   PermissionPresetOption,
@@ -239,6 +239,13 @@ export async function sessionRename(transport: RpcTransport, sessionId: SessionI
   await transport.call('session/rename', request({ sessionId, title }));
 }
 
+/**
+ * 分叉一条会话。
+ *
+ * 0.1.7 把 `atSeq` 改成精确的包含式截断点：给了就必须命中日志里真实存在的 seq，
+ * 否则报 `fork-unavailable`、不再回退；省略时主机取最后一个已完成 turn 的前缀。
+ * 所以调用方只在确知某条 turn/end 的 seq 时才传它。
+ */
 export async function sessionFork(transport: RpcTransport, sessionId: SessionId, atSeq?: number): Promise<SessionForkValue> {
   const args: JsonObject = { sessionId };
   if (atSeq !== undefined) args.atSeq = atSeq;
@@ -295,11 +302,50 @@ export async function sessionAttachment(
   };
 }
 
-/** 归档一条会话（0.1.6 起返回主机落定后的完整归档集合，与 unarchive 同一形状）。 */
-export async function workspaceArchiveSession(transport: RpcTransport, sessionId: SessionId): Promise<SessionId[]> {
-  const value = await transport.call('workspace/archiveSession', request({ sessionId }));
+/**
+ * 归档一条会话（0.1.6 起返回主机落定后的完整归档集合，与 unarchive 同一形状）。
+ *
+ * 0.1.7：有任务在跑的会话默认被拒（`workspace/session-active`）；`stopActivity` 为真时
+ * 主机先停掉这些任务再归档。
+ */
+export async function workspaceArchiveSession(
+  transport: RpcTransport,
+  sessionId: SessionId,
+  stopActivity = false,
+): Promise<SessionId[]> {
+  const body: JsonObject = { sessionId };
+  if (stopActivity) body.stopActivity = true;
+  const value = await transport.call('workspace/archiveSession', request(body));
   const raw = jget(value, 'archivedSessionIds');
   return (Array.isArray(raw) ? raw : []).map(str).filter((id): id is string => id !== undefined);
+}
+
+/** 归档被拒是因为会话里还有任务在跑（0.1.7 的错误码）。 */
+export const SESSION_ACTIVE_ERROR = 'workspace/session-active';
+
+/**
+ * 置顶 / 取消置顶（0.1.7 新增，主机侧的全局置顶集合）。
+ * 返回落定后的完整集合，最近置顶的在前。
+ */
+export async function workspaceSetPinned(
+  transport: RpcTransport,
+  sessionId: SessionId,
+  pinned: boolean,
+): Promise<SessionId[]> {
+  const value = await transport.call(pinned ? 'workspace/pinSession' : 'workspace/unpinSession', request({ sessionId }));
+  const raw = jget(value, 'pinnedSessionIds');
+  return (Array.isArray(raw) ? raw : []).map(str).filter((id): id is string => id !== undefined);
+}
+
+// —— 后台任务（0.1.7 的 `job` 命名空间） ————————————————————————
+
+/**
+ * 替用户停掉一个后台任务。任务必须在这条会话的 job/list 里可见。
+ * 返回 `requested` 或 `already-finished`。
+ */
+export async function jobKill(transport: RpcTransport, sessionId: SessionId, jobId: string): Promise<string> {
+  const value = await transport.call('job/kill', request({ sessionId, jobId }));
+  return str(jget(value, 'outcome')) ?? 'requested';
 }
 
 /** 恢复已归档会话（0.1.6 新增）；返回主机落定后的完整归档集合。 */
@@ -374,6 +420,9 @@ export async function hostOpenPath(transport: RpcTransport, path: string): Promi
  *
  * 主机 readBytes 的单窗口上限默认 2 MiB，靠 `eof` 分片读；不用 readAll（上限 32 MiB，
  * base64 后更大，解成字节时两份同时在内存里）。对齐 Android RpcMethods.workspaceFileReadBytes。
+ *
+ * 0.1.7：范围改放进 `options.range`；应答改成 multipart 二进制，传输层把字节还原成
+ * base64 放回 `data`，所以这里的解码不变。
  */
 export async function workspaceFileReadBytes(
   transport: RpcTransport,
@@ -385,7 +434,7 @@ export async function workspaceFileReadBytes(
   const value = await transport.call('workspaceFiles/readBytes', {
     workspaceFileScopeId: sessionId,
     path,
-    range: { offset, length },
+    options: { range: { offset, length } },
   });
   return {
     absolutePath: str(jget(value, 'absolutePath')) ?? path,
@@ -538,16 +587,15 @@ export async function agentPresetList(transport: RpcTransport): Promise<AgentPre
   const value = await transport.call('agentPresets/list', {});
   const raw = jget(value, 'presets');
   return {
+    // 0.1.7 起预设在配置文件里声明，列表不再带 trust / authorable / hasDocument；
+    // 内置与否改按 id + 是否自带 name 判断（见 agentPresetIsBuiltIn）。
     presets: (Array.isArray(raw) ? raw : []).map(preset => ({
       id: str(jget(preset, 'id')) ?? '',
-      trust: str(jget(preset, 'trust')) ?? 'system',
       isDefault: bool(jget(preset, 'isDefault')) ?? false,
       name: str(jget(preset, 'name')),
       description: str(jget(preset, 'description')),
       broken: str(jget(preset, 'broken')),
     })),
-    authorable: bool(jget(value, 'authorable')) ?? false,
-    hasDocument: bool(jget(value, 'hasDocument')) ?? false,
     // 主机没发这个字段（0.1.6 之前）时按允许处理，与 Mac/Android 的默认 true 同口径。
     modeSelectionEnabled: bool(jget(value, 'modeSelectionEnabled')) ?? true,
   };
@@ -610,6 +658,43 @@ export async function goalEdit(
 
 // —— 子智能体 ————————————————————————————————————————————————
 
+/**
+ * 一个父会话的直接子代理目录（0.1.7）。
+ *
+ * 0.1.7 删掉了 `subagents/list`，改从 `session/projections` 读父会话的 `subagentCatalog`
+ * 投影（不会激活父会话的 Agent）；会话不存在时整个值是 null。目录只有 id / mode / label，
+ * 运行状态由调用方从会话名册里的子会话摘要补上。
+ */
+export async function subagentCatalog(
+  transport: RpcTransport,
+  parentSessionId: SessionId,
+): Promise<SubagentListValue> {
+  const value = await transport.call('session/projections', request({ sessionId: parentSessionId }));
+  if (value === null || value === undefined) return { entries: [], parentAvailable: false };
+  const raw = jget(jget(value, 'values'), 'subagentCatalog');
+  const entries: SubagentListEntry[] = [];
+  for (const entry of Array.isArray(raw) ? raw : []) {
+    const id = str(jget(entry, 'id'));
+    if (id === undefined) continue;
+    entries.push({
+      sessionId: id,
+      isChild: true,
+      mode: decodeSubagentMode(str(jget(entry, 'mode'))),
+      running: false,
+      hasChildren: false,
+      label: str(jget(entry, 'label')),
+    });
+  }
+  return { entries, parentAvailable: true };
+}
+
+/** 0.1.7 多了 `unknown`（迁移补出来的目录项）：只能浏览、不能继续。 */
+export function decodeSubagentMode(mode: string | undefined): SubagentMode {
+  if (mode === 'continuable' || mode === 'one-shot') return mode;
+  return 'unknown';
+}
+
+/** 0.1.6 及更早的子代理目录；0.1.7 主机上这条 RPC 已删除（404）。 */
 export async function subagentList(transport: RpcTransport, parentSessionId: SessionId): Promise<SubagentListValue> {
   const value = await transport.call('subagents/list', { parentSessionId });
   const raw = jget(value, 'entries');

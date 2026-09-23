@@ -12,6 +12,7 @@
 import { bool, jget, parseJson, str, type JsonValue } from '../../model/json';
 import { utf8ToBytes } from './crypto/bytes';
 import { buildClientRequest, encodeClientRequest, unwrapServerResponse, unwrapUploadReceipt } from '../envelope';
+import { decodeBinaryResponse, multipartBoundary } from '../multipart';
 import { ApiException, type MuxConnection, type MuxEvent, type RemoteEventOutcome, type RpcTransport, type WsConnectionState } from '../types';
 import { TunnelHttpClient, responseText } from './http';
 import { TunnelMux, MOBILE_HOST } from './mux';
@@ -45,7 +46,8 @@ const READ_ONLY_METHODS = new Set<string>([
   'fileReferences/list',
   'sessionReferenceResolver/candidates',
   'agentPresets/list',
-  'subagents/list',
+  // 0.1.7：子代理目录改读 session/projections（subagents/list 已删除）。
+  'session/projections',
 ]);
 
 /** 解帧/解密失败这类瞬时隧道错误可以换一条连接重试；业务错误不能。 */
@@ -128,9 +130,17 @@ export class TunnelTransport implements RpcTransport {
         if (attempt < attempts && isTransientTunnel(error)) continue;
         throw transportError(error);
       }
-      const text = responseText(response);
       if (response.status !== 200) {
+        const text = responseText(response);
         throw new ApiException({ code: 'http', message: text.trim() || 'HTTP ' + response.status });
+      }
+      // 0.1.7：带原生字节的结果（readBytes）以 multipart/form-data 应答，先还原成 JSON 信封。
+      const boundary = multipartBoundary(response.headers.get('content-type'));
+      let text: string;
+      try {
+        text = boundary === undefined ? responseText(response) : decodeBinaryResponse(response.body, boundary);
+      } catch (error) {
+        throw transportError(error);
       }
       return unwrapServerResponse(text, request.rpcId);
     }
