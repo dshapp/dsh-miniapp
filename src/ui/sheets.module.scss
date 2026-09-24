@@ -150,6 +150,37 @@
   text-overflow: ellipsis;
 }
 
+/* 后台任务的「进行中 / 已结束 N · 清空」分段头。 */
+.jobSectionHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.jobSectionToggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.jobSectionChevron {
+  font-size: 11px;
+  color: var(--dsh-color-text-faint);
+}
+
+.jobSectionHeader {
+  display: block;
+  padding: 6px 0 2px;
+  font-size: 12px;
+  color: var(--dsh-color-text-sub);
+}
+
+.jobSectionClear {
+  padding: 6px 0 2px 12px;
+  font-size: 12px;
+  color: var(--dsh-color-primary);
+}
+
 .todoDone {
   color: var(--dsh-color-good);
 }

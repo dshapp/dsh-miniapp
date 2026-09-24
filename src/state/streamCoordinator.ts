@@ -57,8 +57,9 @@ import type {
   RpcError,
   WsConnectionState,
 } from '../transport/types';
-import { encodeSessionAddress } from '../transport/rpcMethods';
+import { encodeSessionAddress, historyWindowArgs } from '../transport/rpcMethods';
 import { Store } from './store';
+import { decodeJobFollowFrame, newObservedJob, reduceObservedJob, type ObservedJobOutput } from '../model/jobs';
 
 /** 连接实况。Android 上是三个独立的 mutableStateOf，这里合成一个可订阅快照。 */
 export interface StreamCoordinatorState {
@@ -186,6 +187,9 @@ export function sessionIdOfJobs(streamId: string): SessionId | undefined {
   return streamId.startsWith('jobs:') ? streamId.slice('jobs:'.length) : undefined;
 }
 
+/** 唯一一条 `job/follow` 观察（同一时间只看一个任务的输出，对齐 web）。 */
+export const JOB_OUTPUT_STREAM = 'job-output';
+
 // Android 用 kotlinx @Serializable 生成提问项的解码；TS 侧没有对应模块，
 // 就地解一遍，避免为一个小结构再引一层依赖。
 function decodeAskUserQuestionItem(value: JsonElement | undefined): AskUserQuestionItem | undefined {
@@ -256,6 +260,8 @@ export class StreamCoordinator {
 
   /** 三个可观察量；页面用 useStore 订阅。 */
   readonly state = new Store<StreamCoordinatorState>({});
+  /** 正在观察输出的那个后台任务（`job/follow`）；详情页在场时才有。 */
+  readonly observedJobStore = new Store<ObservedJobOutput | undefined>(undefined);
 
   onConnectionState?: (state: WsConnectionState) => void;
 
@@ -344,7 +350,7 @@ export class StreamCoordinator {
     const args: JsonValue = {
       request: {
         address: encodeSessionAddress(target),
-        maxMessages,
+        ...historyWindowArgs(maxMessages),
         assistantStream: true,
       },
     };
@@ -353,6 +359,23 @@ export class StreamCoordinator {
     // 老主机没有这个命名空间，这条订阅会以 failure 结束，任务仍走 session/control。
     this.mux?.subscribe(jobsStreamId(sessionId), 'job/list', { request: { sessionId } });
     return true;
+  }
+
+  /** 打开一个任务的 `job/follow` 输出流，替换掉其他观察；同一个任务重复调用是幂等的。 */
+  observeJob(sessionId: SessionId, jobId: string): void {
+    const current = this.observedJobStore.get();
+    if (current !== undefined && current.sessionId === sessionId && current.jobId === jobId) return;
+    this.stopObservingJob();
+    this.observedJobStore.set(newObservedJob(sessionId, jobId));
+    this.mux?.subscribe(JOB_OUTPUT_STREAM, 'job/follow', { request: { sessionId, jobId } });
+  }
+
+  /** 关掉 observeJob 打开的观察；给了 jobId 时只关这一个。 */
+  stopObservingJob(jobId?: string): void {
+    const current = this.observedJobStore.get();
+    if (current === undefined || (jobId !== undefined && current.jobId !== jobId)) return;
+    this.observedJobStore.set(undefined);
+    this.mux?.unsubscribe(JOB_OUTPUT_STREAM);
   }
 
   /** 重开一条 follow：流失败后重试基线用（subscribe 幂等，失败的那条得先撤掉）。 */
@@ -367,6 +390,7 @@ export class StreamCoordinator {
     this.assistantExpectations.delete(sessionId);
     this.mux?.unsubscribe(followStreamId(sessionId));
     this.mux?.unsubscribe(jobsStreamId(sessionId));
+    if (this.observedJobStore.get()?.sessionId === sessionId) this.stopObservingJob();
   }
 
   /**
@@ -410,6 +434,13 @@ export class StreamCoordinator {
         this.handleItem(event.streamId, event.value);
         break;
       case 'failure': {
+        if (event.streamId === JOB_OUTPUT_STREAM) {
+          const observed = this.observedJobStore.get();
+          if (observed !== undefined) {
+            this.observedJobStore.set({ ...observed, streaming: false, error: event.error.message || event.error.code });
+          }
+          break;
+        }
         const sessionId = sessionIdOfFollow(event.streamId);
         if (sessionId !== undefined) this.failFollow(sessionId, event.error);
         break;
@@ -438,6 +469,11 @@ export class StreamCoordinator {
       case CONTROL:
         this.handleControl(decodeControlFrame(value));
         break;
+      case JOB_OUTPUT_STREAM: {
+        const observed = this.observedJobStore.get();
+        if (observed !== undefined) this.observedJobStore.set(reduceObservedJob(observed, decodeJobFollowFrame(value)));
+        break;
+      }
       default: {
         const jobsSessionId = sessionIdOfJobs(streamId);
         if (jobsSessionId !== undefined) {

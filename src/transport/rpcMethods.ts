@@ -107,6 +107,19 @@ export async function sessionCreate(transport: RpcTransport, workspaceId?: Works
   return { sessionId, agentPreset: str(jget(value, 'agentPreset')) };
 }
 
+/** 按轮次对齐的历史窗口上限（web session-controller `HISTORY_PAGE_OPTIONS.maxMessages`）。 */
+export const HISTORY_MESSAGE_CAP = 500;
+
+/**
+ * 按轮次边界对齐的历史窗口（0.1.7 `turnWindow`，对齐 web `HISTORY_PAGE_OPTIONS`）：
+ * 至少 `minMessages` 条消息、两个轮次起点，所以一页不会从半轮开始；总量封顶 500。
+ * `session/page` 与 `session/follow` 共用这一份参数。
+ */
+export function historyWindowArgs(minMessages: number): JsonObject {
+  const minimum = Math.max(1, Math.min(Math.trunc(minMessages), HISTORY_MESSAGE_CAP));
+  return { maxMessages: HISTORY_MESSAGE_CAP, turnWindow: { minMessages: minimum, minTurns: 2 } };
+}
+
 export async function sessionPage(
   transport: RpcTransport,
   address: SessionAddress,
@@ -116,7 +129,7 @@ export async function sessionPage(
 ): Promise<SessionPageValue> {
   const args: JsonObject = { address: encodeSessionAddress(address), throughSeq };
   if (beforeSeq !== undefined) args.beforeSeq = beforeSeq;
-  if (maxMessages !== undefined) args.maxMessages = maxMessages;
+  if (maxMessages !== undefined) Object.assign(args, historyWindowArgs(maxMessages));
   const value = await transport.call('session/page', request(args));
   const raw = jget(value, 'records');
   const records = Array.isArray(raw) ? raw : [];

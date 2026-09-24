@@ -337,10 +337,17 @@ export interface JobView {
   progress?: string;
   startedAt: number;
   finishedAt?: number;
+  /** 0.1.7：输出环的绝对坐标。`total` 是下一块的起始偏移（没写过就是 0），`earliest` 是最早保留的字节。 */
+  output?: { total: number; earliest: number };
 }
 
 export function jobIsLive(job: JobView): boolean {
   return job.status === 'running' || job.status === 'stopping';
+}
+
+/** web `isObservable`：还可能有实时输出，或已结束但留下了输出。 */
+export function jobIsObservable(job: JobView): boolean {
+  return jobIsLive(job) || (job.output?.total ?? 0) > 0;
 }
 
 // 子智能体 ————————————————————————————————————————————————————

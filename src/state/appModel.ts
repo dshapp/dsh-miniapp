@@ -1,4 +1,5 @@
 import { Store } from './store';
+import type { ObservedJobOutput } from '../model/jobs';
 import { searchStore, type SearchState } from './search';
 import { connectionStore, socketStateStore } from './connection';
 import { profileStore, decodeKey, type ServerProfile } from './profileStore';
@@ -1124,13 +1125,32 @@ export class AppModel {
     }
   }
 
-  /** 替用户停掉一个后台任务（0.1.7 的 job/kill）；列表由 job/list 流自己刷新。 */
-  async killJob(sessionId: SessionId, jobId: string): Promise<void> {
+  /**
+   * 替用户停掉一个后台任务（0.1.7 的 job/kill）；列表由 job/list 流自己刷新。
+   * @returns 主机是否受理了这次停止（已经结束的任务也算受理）。
+   */
+  async killJob(sessionId: SessionId, jobId: string): Promise<boolean> {
     try {
       await jobKill(this.requireTransport(), sessionId, jobId);
+      return true;
     } catch (error) {
       this.lastErrorStore.set(describe(error));
+      return false;
     }
+  }
+
+  /** 正在观察输出的后台任务；任务详情页订阅它。 */
+  get observedJobStore(): Store<ObservedJobOutput | undefined> {
+    return this.ensureCoordinator().observedJobStore;
+  }
+
+  /** 任务详情页出现时打开 `job/follow`，离开时关掉（同一时间只观察一个）。 */
+  observeJob(sessionId: SessionId, jobId: string): void {
+    this.ensureCoordinator().observeJob(sessionId, jobId);
+  }
+
+  stopObservingJob(jobId?: string): void {
+    this.coordinator?.stopObservingJob(jobId);
   }
 
   /**

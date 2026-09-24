@@ -19,6 +19,8 @@ import {
 import type { PresentedFile } from '../model/format';
 import { parseArgsMap } from '../model/toolRow';
 import { jobIsLive } from '../model/types';
+import { liveJobs, settledJobs } from '../model/jobs';
+import { jobStatusLabel, openJobDetail } from './jobDetail';
 import type { JobView, ModelProviderGroup, SubagentListEntry } from '../model/types';
 import {
   createQuestionFlow,
@@ -170,6 +172,13 @@ function DetailRow(props: { label: string; value: string; section?: boolean }): 
   );
 }
 
+/** 每个会话里被用户「清空」掉的已结束任务 id（纯本端隐藏）。 */
+const CLEARED_JOBS = new Map<string, ReadonlySet<string>>();
+
+function clearedJobIds(sessionId: string): ReadonlySet<string> {
+  return CLEARED_JOBS.get(sessionId) ?? new Set<string>();
+}
+
 function SectionTitle(props: { text: string }): JSX.Element {
   return <Text className={styles.sectionTitle}>{props.text}</Text>;
 }
@@ -236,19 +245,35 @@ export function SessionPanelSheet(props: {
     return [];
   }, [deliverablesRevision, stats, store]);
 
-  // 运行中的任务点一下可以停掉（0.1.7 的 job/kill）；已结束的行点了不做事。
-  const stopJob = (job: JobView): void => {
-    if (!jobIsLive(job)) return;
-    wx.showModal({
-      title: Strings.jobStopTitle,
-      content: job.label,
-      confirmText: Strings.jobStopConfirm,
-      cancelText: Strings.cancel,
-      success: result => {
-        if (result.confirm) void model.killJob(props.sessionId, job.id);
-      },
-    });
+  // 已结束任务的「清空」只是本端隐藏（与 web 一样，主机的记录还在）；按会话记在模块里，关了面板再开仍然生效。
+  const [cleared, setCleared] = React.useState<ReadonlySet<string>>(() => clearedJobIds(props.sessionId));
+  React.useEffect(() => setCleared(clearedJobIds(props.sessionId)), [props.sessionId]);
+  const running = liveJobs(jobs);
+  const settled = settledJobs(jobs, cleared);
+  // 用户没动过折叠时：有进行中的任务就把已结束那段收起来（web `settledOpen ?? liveRows.length === 0`）。
+  const [settledOpen, setSettledOpen] = React.useState<boolean | undefined>(undefined);
+  const settledExpanded = settledOpen ?? running.length === 0;
+  const clearSettled = (): void => {
+    const next = new Set(cleared);
+    for (const job of settled) next.add(job.id);
+    CLEARED_JOBS.set(props.sessionId, next);
+    setCleared(next);
   };
+  const renderJob = (job: JobView): JSX.Element => (
+    <View key={job.id} className={styles.listRow} onClick={() => openJobDetail(store, job)}>
+      <View className={styles.rowTextColumn}>
+        <Text className={styles.rowTitle}>{job.label}</Text>
+        {(job.progress ?? job.detail) === undefined
+          ? null
+          : <Text className={styles.rowDetail}>{job.progress ?? job.detail}</Text>}
+      </View>
+      <View className={styles.rowTrailingGroup}>
+        {jobIsLive(job) ? <Icon name='loader-circle' spin className={styles.rowTrailing} /> : null}
+        <Text className={styles.rowMeta}>{jobStatusLabel(job.status)}</Text>
+        <Icon name='chevron-right' className={styles.rowTrailing} />
+      </View>
+    </View>
+  );
 
   const openSubagent = (entry: SubagentListEntry): void => {
     if (!entry.isChild) return;
@@ -283,24 +308,29 @@ export function SessionPanelSheet(props: {
         </View>
       )}
 
-      {jobs.length === 0 ? null : (
+      {running.length === 0 && settled.length === 0 ? null : (
         <View>
           <SectionTitle text={Strings.jobs} />
-          {jobs.map((job: JobView) => (
-            <View key={job.id} className={styles.listRow} onClick={() => stopJob(job)}>
-              {/* 尾部是「运行中转圈 + 状态码」，与 Android ListItem 的 trailing 一致。 */}
-              <View className={styles.rowTextColumn}>
-                <Text className={styles.rowTitle}>{job.label}</Text>
-                {(job.progress ?? job.detail) === undefined
-                  ? null
-                  : <Text className={styles.rowDetail}>{job.progress ?? job.detail}</Text>}
-              </View>
-              <View className={styles.rowTrailingGroup}>
-                {jobIsLive(job) ? <Icon name='loader-circle' spin className={styles.rowTrailing} /> : null}
-                <Text className={styles.rowMeta}>{job.status}</Text>
-              </View>
+          {running.length === 0 ? null : (
+            <View>
+              <Text className={styles.jobSectionHeader}>{Strings.jobsSectionLive}</Text>
+              {running.map(renderJob)}
             </View>
-          ))}
+          )}
+          {settled.length === 0 ? null : (
+            <View>
+              <View className={styles.jobSectionHeaderRow}>
+                <View className={styles.jobSectionToggle} onClick={() => setSettledOpen(!settledExpanded)}>
+                  <Icon name={settledExpanded ? 'chevron-down' : 'chevron-right'} className={styles.jobSectionChevron} />
+                  <Text className={styles.jobSectionHeader}>{fmt(Strings.jobsSectionSettled, settled.length)}</Text>
+                </View>
+                <Text className={styles.jobSectionClear} onClick={clearSettled}>
+                  {Strings.jobsSectionClear}
+                </Text>
+              </View>
+              {settledExpanded ? settled.map(renderJob) : null}
+            </View>
+          )}
         </View>
       )}
 

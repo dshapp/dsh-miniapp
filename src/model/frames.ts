@@ -441,7 +441,14 @@ export function decodeJobView(value: JsonElement | undefined): JobView | undefin
     progress: str(jget(value, 'progress')),
     startedAt: dbl(jget(value, 'startedAt')) ?? 0,
     finishedAt: dbl(jget(value, 'finishedAt')),
+    output: decodeJobOutput(jget(value, 'output')),
   };
+}
+
+function decodeJobOutput(value: JsonElement | undefined): JobView['output'] {
+  const total = dbl(jget(value, 'total'));
+  if (total === undefined) return undefined;
+  return { total, earliest: dbl(jget(value, 'earliest')) ?? 0 };
 }
 
 /**
