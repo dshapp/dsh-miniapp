@@ -3,7 +3,7 @@ import Taro from '@tarojs/taro';
 import { Text, View } from '@tarojs/components';
 import { color_bad, color_good, color_primary, color_text_faint, color_text_sub, color_warning, DIMENS } from '../const';
 import { Strings, fmt } from '../i18n/strings';
-import { contextCollapsedSummary, contextForm, type ContextForm } from '../model/contextPresentation';
+import { turnTriggerPresentation } from '../model/turnTrigger';
 import { Store, useStore } from '../state/store';
 import { openCardDetail } from './cardDetail';
 
@@ -19,8 +19,8 @@ import type {
   AssistantStepData,
   ChatNode,
   ContentBlock,
-  SystemPromptChatNode,
   TurnProcessSpec,
+  TurnTriggerNode,
   TurnTailData,
   UnknownSurfaceNode,
   WorkflowRunData,
@@ -36,7 +36,7 @@ import {
   tokenCount,
   turnTotalTokens,
 } from '../model/format';
-import { JsonTree, MonospaceBlock, NoticeRow, ThinkCard, ToolCard } from './cards';
+import { JsonTree, NoticeRow, ThinkCard, ToolCard } from './cards';
 import { ImageGallery, decodeAttachmentRef } from './attachmentImage';
 export { AttachmentImage, decodeAttachmentRef, type AttachmentRef } from './attachmentImage';
 import { ChangedFilesCard } from './changedFilesCard';
@@ -310,53 +310,23 @@ function DetailCard(props: {
   );
 }
 
-/** form 对应的字形；与 Android ContextRow 的 when(ContextForm) 一一对应。 */
-function contextFormIcon(form: ContextForm | undefined): LucideIconName | undefined {
-  switch (form) {
-    case 'instructions':
-      return 'list';
-    case 'catalog':
-      return 'book-open';
-    case 'snapshot':
-      return 'camera';
-    case 'notice':
-      return 'bell';
-    case 'relay':
-      return 'move-right';
-    case 'recall':
-      return 'history';
-    default:
-      return undefined;
-  }
-}
-
-/** 注入的上下文/记忆：摘要行 + 展开后的纯文本全文。 */
-function ContextRow(props: {
-  node: Extract<ChatNode, { kind: 'context' }>;
-  findQuery: string;
-  findActive: boolean;
-}): JSX.Element {
-  const { node, findQuery, findActive } = props;
-  // notice 自带一句人能读的 summary，优先于来源名（对齐 Android ContextRow）。
-  const summary = contextCollapsedSummary(node.source) ?? node.provenanceLabel ?? Strings.contextInjected;
-  const name: LucideIconName = contextFormIcon(contextForm(node.source)) ??
-    (node.provenanceRole === 'recall' ? 'history' : 'file-text');
-  const text = plainText(node.content);
+/**
+ * 轮次触发通知：是谁唤醒了这一轮（定时任务、后台任务、goal、webhook、插件……），
+ * 一行摘要，全文在详情里看（对齐 Mac `PhoneTurnTriggerRow`）。
+ */
+function TurnTriggerRow(props: { data: TurnTriggerNode; findQuery: string; findActive: boolean }): JSX.Element {
+  const { data, findQuery, findActive } = props;
+  const presentation = turnTriggerPresentation(data.source);
+  const title = Strings[presentation.title];
+  const text = plainText(data.content);
   return (
-    <DetailCard name={name} title={summary} findQuery={findQuery} findActive={findActive} copyText={text}>
+    <DetailCard name={presentation.icon} title={title} findQuery={findQuery} findActive={findActive} copyText={text}>
+      <Text className={styles.detailText} style={{ color: color_text_sub }}>
+        {Strings.turnTriggerExplanation}
+      </Text>
       <Text className={styles.detailText} selectable userSelect>
         {text}
       </Text>
-    </DetailCard>
-  );
-}
-
-/** 系统提示：更新过的系统提示与初始提示共用一个可折叠行。 */
-function SystemPromptRow(props: { data: SystemPromptChatNode }): JSX.Element {
-  const title = props.data.update ? Strings.systemPromptUpdated : Strings.systemPrompt;
-  return (
-    <DetailCard name='text-quote' title={title} copyText={props.data.text}>
-      <MonospaceBlock text={props.data.text} />
     </DetailCard>
   );
 }
@@ -717,8 +687,8 @@ export function MessageRow(props: MessageRowProps): JSX.Element {
           onOpenSession={props.onOpenSession}
         />
       );
-    case 'context':
-      return <ContextRow node={node} findQuery={findQuery} findActive={findActive} />;
+    case 'turnTrigger':
+      return <TurnTriggerRow data={node.data} findQuery={findQuery} findActive={findActive} />;
     case 'assistant':
       return (
         <AssistantRow
@@ -785,8 +755,6 @@ export function MessageRow(props: MessageRowProps): JSX.Element {
           }
         />
       );
-    case 'systemPrompt':
-      return <SystemPromptRow data={node.data} />;
     case 'workflow':
       return <WorkflowRunCard data={node.data} />;
     case 'unknownSurface':

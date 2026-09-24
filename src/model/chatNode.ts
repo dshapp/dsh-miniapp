@@ -224,12 +224,16 @@ export interface WorkflowRunData {
 
 // 其它节点 ————————————————————————————————————————————————————
 
-export interface SystemPromptChatNode {
+/**
+ * 唤醒这一轮的非人类消息（web `turn-trigger`）：定时任务、后台任务结束、goal 续跑、
+ * webhook、插件……单独画成一条折叠通知；其余非人类上下文一律不进对话区。
+ */
+export interface TurnTriggerNode {
   seq: number;
   time: number;
-  anchorSeq: number;
-  text: string;
-  update: boolean;
+  messageId: MessageId;
+  content: ContentBlock[];
+  source?: JsonElement;
 }
 
 export interface UnknownSurfaceNode { seq: number; time: number; type: string; data?: JsonElement }
@@ -299,16 +303,7 @@ export interface TurnTailData {
 export type ChatNode =
   | { kind: 'user'; seq: number; time: number; messageId: MessageId; content: ContentBlock[] }
   | { kind: 'steering'; seq: number; time: number; messageId: MessageId; content: ContentBlock[] }
-  | {
-      kind: 'context';
-      seq: number;
-      time: number;
-      messageId: MessageId;
-      content: ContentBlock[];
-      source?: JsonElement;
-      provenanceLabel?: string;
-      provenanceRole: string;
-    }
+  | { kind: 'turnTrigger'; data: TurnTriggerNode }
   | { kind: 'assistant'; step: AssistantStepData }
   | { kind: 'tool'; data: ToolChatData }
   | { kind: 'compaction'; data: CompactionSummaryNode }
@@ -319,14 +314,13 @@ export type ChatNode =
   | { kind: 'turnTail'; data: TurnTailData }
   | { kind: 'workflow'; data: WorkflowRunData }
   | { kind: 'turnProcess'; spec: TurnProcessSpec }
-  | { kind: 'systemPrompt'; data: SystemPromptChatNode }
   | { kind: 'unknownSurface'; data: UnknownSurfaceNode };
 
 export function chatNodeId(node: ChatNode): string {
   switch (node.kind) {
     case 'user': return `u-${node.messageId}`;
     case 'steering': return `s-${node.messageId}`;
-    case 'context': return `c-${node.messageId}`;
+    case 'turnTrigger': return `trg-${node.data.messageId}`;
     case 'assistant': return `a-${node.step.turn}:${node.step.step}`;
     case 'tool': return `t-${node.data.callId}`;
     case 'compaction': return `cmp-${node.data.compactionId}`;
@@ -337,7 +331,6 @@ export function chatNodeId(node: ChatNode): string {
     case 'turnTail': return `ttl-${node.data.turn}`;
     case 'workflow': return `wf-${node.data.runId}`;
     case 'turnProcess': return `tp-${node.spec.turn}`;
-    case 'systemPrompt': return `sys-${node.data.seq}`;
     case 'unknownSurface': return `unk-${node.data.seq}`;
   }
 }
@@ -347,7 +340,7 @@ export function chatNodeAnchorSeq(node: ChatNode): number {
   switch (node.kind) {
     case 'user': return node.seq;
     case 'steering': return node.seq;
-    case 'context': return node.seq;
+    case 'turnTrigger': return node.data.seq;
     case 'assistant': return node.step.settledSeq ?? node.step.firstVisibleSeq ?? node.step.startSeq;
     case 'tool': return node.data.startSeq;
     case 'compaction': return node.data.seq;
@@ -358,7 +351,6 @@ export function chatNodeAnchorSeq(node: ChatNode): number {
     case 'turnTail': return node.data.seq + 0.1;
     case 'workflow': return node.data.anchorSeq;
     case 'turnProcess': return node.spec.processStartSeq - 0.001;
-    case 'systemPrompt': return node.data.anchorSeq;
     case 'unknownSurface': return node.data.seq;
   }
 }
@@ -388,8 +380,9 @@ export function chatNodeSearchText(node: ChatNode): string {
   switch (node.kind) {
     case 'user':
     case 'steering':
-    case 'context':
       return plainText(node.content);
+    case 'turnTrigger':
+      return plainText(node.data.content);
     case 'assistant':
       return node.step.blocks
         .map(block => (block && (block.kind === 'text' || block.kind === 'reasoning') ? block.text : null))

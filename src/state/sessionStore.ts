@@ -39,7 +39,6 @@ import type {
   CompactionSummaryNode,
   ContentBlock,
   ModelRetryNode,
-  SystemPromptChatNode,
   TokenUsage,
   ToolChatData,
   ToolResultData,
@@ -514,35 +513,12 @@ function workflowStatusFromOutcome(outcome: string): WorkflowRunStatus {
   }
 }
 
-/** 上下文注入行的来源分类（与 web contextProvenance 同源）。 */
-function contextProvenance(source: JsonElement | undefined): [role: string, label: string | undefined] {
-  const kind = str(jget(source, 'kind'));
-  if (kind === undefined) return ['inject', undefined];
-  const collect = (member: string, field: string): string | undefined => {
-    const list = arr(jget(source, member));
-    if (list === undefined) return undefined;
-    const names: string[] = [];
-    for (const entry of list) {
-      const value = str(jget(entry, field));
-      if (value === undefined || value.length === 0) continue;
-      if (!names.includes(value)) names.push(value);
-    }
-    return names.length > 0 ? names.join(', ') : undefined;
-  };
-  switch (kind) {
-    case 'session-reference':
-      return ['recall', collect('references', 'label') ?? kind];
-    case 'agent-instructions':
-      return ['inject', collect('changes', 'path') ?? kind];
-    // 0.1.6 及更早的 {kind:'plugin', plugin}；0.1.7 取消了这个 kind，由生产方自报。
-    case 'plugin':
-      return ['inject', str(jget(source, 'plugin')) ?? kind];
-    case 'skill-invocation':
-      return ['inject', str(jget(source, 'name')) ?? kind];
-    default:
-      // v4 迁移把未知插件来源改写成 'plugin:<名字>'，标签只留名字。
-      return ['inject', kind.startsWith('plugin:') ? kind.slice('plugin:'.length) : kind];
-  }
+/** 一个 inbox 目标当前的认领（web `InboxState.currentClaimed`）。 */
+interface InboxClaim {
+  ids: Set<MessageId>;
+  seq: number;
+  /** 这一批里有没有人类发的消息。 */
+  human: boolean;
 }
 
 /** 展开 DSH 1.5 压缩的 assistant stream 记录。 */
@@ -931,8 +907,15 @@ export class SessionStore {
   private readonly turnStartSeqs = new Map<number, number>();
   /** 每一轮在窗口里最早那条事件的时刻：turn/start 被裁掉时当用时的计时起点。 */
   private readonly turnFirstEventTime = new Map<number, number>();
-  private readonly stepStartSeqs = new Map<string, number>();
-  private sawSystemPrompt = false;
+  /** 当前轮里最近开始的那一步。 */
+  private currentStep = 0;
+  /**
+   * 每个 inbox 目标的当前认领（web `InboxState`）：最近一次非取消的移除拿走了哪些 id、
+   * 发生在哪个 seq、这批里有没有人类消息。之后再插回来的 id 从认领里剔除。
+   */
+  private readonly inboxClaims = new Map<string, InboxClaim>();
+  /** 来源是人类的 inbox 消息 id，认领时据此判断这一批里有没有人类。 */
+  private readonly humanInboxIds = new Set<MessageId>();
   private readonly turnEndBoundaries: Array<[seq: number, time: number]> = [];
   private readonly presentedByTurn = new Map<number, PresentedFile[]>();
   /** `permissions` 投影（0.1.6 只带 currentValue，0.1.5 还内联候选）。 */
@@ -1321,8 +1304,9 @@ export class SessionStore {
     this.stepStartTimes.clear();
     this.turnStartSeqs.clear();
     this.turnFirstEventTime.clear();
-    this.stepStartSeqs.clear();
-    this.sawSystemPrompt = false;
+    this.currentStep = 0;
+    this.inboxClaims.clear();
+    this.humanInboxIds.clear();
     this.turnEndBoundaries.length = 0;
     this.currentTurn = 0;
     this.activeSteps.clear();
@@ -1423,8 +1407,8 @@ export class SessionStore {
       case 'workspace/changes':
         this.applyWorkspaceChanges(event);
         break;
+      // 对话区不显示 system prompt（web `isVisibleChatNode`）；在这里认领，免得落进未知 surface 兜底。
       case 'system/message':
-        this.applySystemPrompt(event);
         break;
       default:
         this.applyUnknownSurface(event);
@@ -1441,42 +1425,6 @@ export class SessionStore {
 
   private isReplacementSurface(event: SessionEvent): boolean {
     return str(jget(event.surfaceOp, 'op')) === 'replace';
-  }
-
-  private applySystemPrompt(event: SessionEvent): void {
-    if (!this.isAppendSurface(event)) return;
-    const content = arr(jget(jget(event.data, 'message'), 'content'));
-    if (content === undefined) return;
-    const text = content
-      .filter(block => str(jget(block, 'type')) === 'text')
-      .map(block => str(jget(block, 'text')))
-      .filter((item): item is string => item !== undefined)
-      .join('');
-    if (text.length === 0) return;
-    const update = this.sawSystemPrompt;
-    this.sawSystemPrompt = true;
-    const turn = int(jget(event.data, 'turn'));
-    const step = int(jget(event.data, 'step'));
-    const node: SystemPromptChatNode = {
-      seq: event.seq,
-      time: event.time,
-      anchorSeq: update ? event.seq : this.systemPromptAnchor(event, turn, step),
-      text,
-      update,
-    };
-    this.contexts.set('system-prompt:' + event.seq, {
-      kind: 'finalized',
-      node: { kind: 'systemPrompt', data: node },
-    });
-  }
-
-  private systemPromptAnchor(event: SessionEvent, turn: number | undefined, step: number | undefined): number {
-    if (turn === undefined || step === undefined) return event.seq;
-    if (step === 1) {
-      const start = this.turnStartSeqs.get(turn);
-      if (start !== undefined) return start;
-    }
-    return this.stepStartSeqs.get(turn + ':' + step) ?? this.turnStartSeqs.get(turn) ?? event.seq;
   }
 
   private applyUnknownSurface(event: SessionEvent): void {
@@ -1510,9 +1458,35 @@ export class SessionStore {
     for (let i = 0; i < removalCount; i += 1) pending.splice(boundedStart, 1);
     pending.splice(boundedStart, 0, ...insertedIds);
     for (const id of insertedIds) this.claimedSteeringIds.delete(id);
-    if (target === 'next-step' && str(data.outcome) !== 'canceled') {
-      for (const id of removed) this.claimedSteeringIds.add(id);
+    const claimed = removalCount > 0 && str(data.outcome) !== 'canceled';
+    if (claimed) {
+      if (target === 'next-step') for (const id of removed) this.claimedSteeringIds.add(id);
+      const human = removed.some(id => this.humanInboxIds.has(id));
+      this.inboxClaims.set(target, { ids: new Set(removed), seq: event.seq, human });
+    } else {
+      const claim = this.inboxClaims.get(target);
+      if (claim !== undefined) for (const id of insertedIds) claim.ids.delete(id);
     }
+    for (const item of inserted) {
+      const id = str(jget(item, 'id'));
+      if (id !== undefined && str(jget(jget(item, 'source'), 'kind')) === 'user') this.humanInboxIds.add(id);
+    }
+  }
+
+  /**
+   * 这条非人类消息是不是唤醒了它所在的轮次（web `message.ts` 的 `waking`）：
+   * 它在当前 next-turn 认领里；或者是一次空闲插队——当前轮第 1 步、轮次起点已载入、
+   * 在起点之后被 next-step 认领、这一轮没有 next-turn 认领、且这批里没有人类消息。
+   */
+  private isWaking(id: MessageId): boolean {
+    const nextTurn = this.inboxClaims.get('next-turn');
+    if (nextTurn !== undefined && nextTurn.ids.has(id)) return true;
+    if (this.currentTurn === 0 || this.currentStep !== 1) return false;
+    const turnStart = this.turnStartSeqs.get(this.currentTurn);
+    if (turnStart === undefined) return false;
+    const step = this.inboxClaims.get('next-step');
+    if (step === undefined || step.seq <= turnStart || step.human || !step.ids.has(id)) return false;
+    return (nextTurn?.seq ?? -1) < turnStart;
   }
 
   private applyUserMessage(event: SessionEvent): void {
@@ -1530,26 +1504,18 @@ export class SessionStore {
     // 0.1.6 及更早是 {kind:'plugin', plugin:'compact'}，两种都认。
     if (sourceKind === 'compact-checkpoint' || str(jget(source, 'plugin')) === 'compact') return;
     if (sourceKind === 'session-reference') this.noteReferencedSessions(source);
-    const kind = sourceKind === 'user' ? (this.claimedSteeringIds.has(id) ? 'steering' : 'user') : 'context';
     let node: ChatNode;
-    if (kind === 'steering') {
-      node = { kind: 'steering', seq: event.seq, time: event.time, messageId: id, content };
-    } else if (kind === 'context') {
-      const provenance = contextProvenance(source);
-      node = {
-        kind: 'context',
-        seq: event.seq,
-        time: event.time,
-        messageId: id,
-        content,
-        source,
-        provenanceLabel: provenance[1],
-        provenanceRole: provenance[0],
-      };
+    if (sourceKind === 'user') {
+      node = this.claimedSteeringIds.has(id)
+        ? { kind: 'steering', seq: event.seq, time: event.time, messageId: id, content }
+        : { kind: 'user', seq: event.seq, time: event.time, messageId: id, content };
+    } else if (this.isWaking(id)) {
+      node = { kind: 'turnTrigger', data: { seq: event.seq, time: event.time, messageId: id, content, source } };
     } else {
-      node = { kind: 'user', seq: event.seq, time: event.time, messageId: id, content };
+      // 普通上下文注入不进对话区（web `isVisibleChatNode`）。
+      return;
     }
-    this.contexts.set(kind + ':' + id, { kind: 'finalized', node });
+    this.contexts.set(chatNodeId(node), { kind: 'finalized', node });
   }
 
   /** 记下一条 recall 上下文里的 label → sessionId，供用户气泡把标题点成跳转。 */
@@ -1917,6 +1883,7 @@ export class SessionStore {
     const turn = int(jget(event.data, 'turn'));
     if (turn === undefined) return;
     this.currentTurn = turn;
+    this.currentStep = 0;
     this.turnStartSeqs.set(turn, event.seq);
     this.running = true;
     this.lastTurnErrored = false;
@@ -1937,9 +1904,9 @@ export class SessionStore {
     const step = int(jget(event.data, 'step'));
     if (step === undefined) return;
     this.activeSteps.add(step);
+    this.currentStep = step;
     if (this.currentTurn === 0) return;
     this.stepStartTimes.set(this.currentTurn + ':' + step, event.time);
-    this.stepStartSeqs.set(this.currentTurn + ':' + step, event.seq);
     const key = this.assistantStepKey(this.currentTurn, step);
     const ctx = this.contexts.get(key);
     if (ctx !== undefined && ctx.kind === 'assistant') {
@@ -2489,8 +2456,9 @@ export class SessionStore {
         case 'maxTokens':
           built.push({ kind: 'turnMaxTokens', data: ctx.node });
           break;
+        // 权限模式命令是界面自身的操作，对话区不显示（web `isVisibleChatNode`）。
         case 'command':
-          built.push({ kind: 'command', data: ctx.node });
+          if (ctx.node.name !== 'permission') built.push({ kind: 'command', data: ctx.node });
           break;
         case 'tail':
           built.push({ kind: 'turnTail', data: ctx.data });
@@ -2610,7 +2578,8 @@ export class SessionStore {
     };
 
     for (const node of rows) {
-      if (node.kind === 'user' || node.kind === 'steering') {
+      // 用户、插队与轮次触发都是一轮的开头，之后的行不能再算给前一轮。
+      if (node.kind === 'user' || node.kind === 'steering' || node.kind === 'turnTrigger') {
         openTurn = undefined;
         pendingAnchors.length = 0;
         continue;
@@ -2648,7 +2617,6 @@ export class SessionStore {
           acc.processAnchors.push(chatNodeAnchorSeq(node));
           break;
         case 'modelRetry':
-        case 'context':
         case 'compaction':
         case 'command':
         case 'workflow':
@@ -2689,11 +2657,12 @@ export class SessionStore {
     switch (node.kind) {
       case 'user':
       case 'steering':
+      // 触发通知说明是谁唤醒了这一轮，不能折进它开启的过程里。
+      case 'turnTrigger':
       case 'turnProcess':
       case 'turnError':
       case 'turnMaxTokens':
       case 'turnTail':
-      case 'systemPrompt':
         return false;
       default:
         break;

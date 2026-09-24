@@ -1,11 +1,10 @@
 /**
  * 会话 store 的几条口径：逐条对照安卓
- * ContextCollapsedSummaryTest / TurnFailureMessageTest / GoalBarGoalTest。
+ * TurnFailureMessageTest / GoalBarGoalTest。
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SessionStore } from '../../src/state/sessionStore';
-import { contextCollapsedSummary, contextForm } from '../../src/model/contextPresentation';
 import { setLocale } from '../../src/i18n/strings';
 
 // —— 工具调用与结果的配对（安卓 ToolResultLinkageTest）————————————
@@ -33,34 +32,6 @@ test('一条都接不上时孤儿结果拿到唯一 id', () => {
   const store = new SessionStore('s1');
   store.apply(emptyIdResult(11, 'stray'), undefined);
   assert.notEqual(store.toolCall('orphan-11'), undefined);
-});
-
-// —— 上下文注入行的摘要与形态 ————————————————————————————
-
-const notice = (summary: string) => ({ kind: 'subagent-settled', form: 'notice', summary });
-
-test('notice 的 summary 就是收起态那行字', () => {
-  assert.equal(contextCollapsedSummary(notice('Background subagent finished.')), 'Background subagent finished.');
-});
-
-test('非 notice 形态没有收起摘要', () => {
-  assert.equal(contextCollapsedSummary({ kind: 'agent-message', form: 'relay', senderSessionId: 'abc' }), undefined);
-});
-
-test('没有 summary 的 notice 不是 notice', () => {
-  assert.equal(contextCollapsedSummary(notice('')), undefined);
-  assert.equal(contextForm(notice('')), undefined);
-});
-
-test('声明的形态要能从字段里验出来', () => {
-  assert.equal(contextForm(notice('done')), 'notice');
-  assert.equal(contextForm({ form: 'instructions', changes: [{ path: 'AGENTS.md', action: 'set' }] }), 'instructions');
-  // 声明了 form 但字段读不出来 -> 不画成那个形态。
-  assert.equal(contextForm({ form: 'instructions' }), undefined);
-  assert.equal(contextForm({ form: 'catalog' }), undefined);
-  assert.equal(contextForm({ form: 'relay' }), undefined);
-  assert.equal(contextForm(null), undefined);
-  assert.equal(contextForm(undefined), undefined);
 });
 
 // —— 失败轮次的文案 ————————————————————————————————————

@@ -73,17 +73,7 @@ test('compact-checkpoint 来源的消息不进转写（0.1.6 的 plugin:compact 
   store.apply(ev('user/message', 2, {
     id: 'u2', content: [{ type: 'text', text: 'summary' }], source: { kind: 'plugin', plugin: 'compact' },
   }), undefined);
-  assert.equal(store.nodes.filter(node => node.kind === 'context' || node.kind === 'user').length, 0);
-});
-
-test('v4 迁移出来的 plugin:<名字> 来源，标签只留名字', () => {
-  const store = new SessionStore('s1');
-  store.apply(ev('user/message', 1, {
-    id: 'u1', content: [{ type: 'text', text: 'hi' }], source: { kind: 'plugin:recall' },
-  }), undefined);
-  const node = store.nodes.find(item => item.kind === 'context');
-  assert.equal(node?.kind, 'context');
-  assert.equal((node as { provenanceLabel?: string }).provenanceLabel, 'recall');
+  assert.equal(store.nodes.filter(node => node.kind === 'turnTrigger' || node.kind === 'user').length, 0);
 });
 
 // —— job/list ——————————————————————————————————————————————
