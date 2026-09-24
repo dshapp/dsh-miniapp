@@ -36,6 +36,10 @@ export default defineConfig<'webpack5'>(async (merge, { command, mode }) => {
       enable: false,
     },
     mini: {
+      // marked 发行包含 ES2022 class fields，微信上传校验解析不了，需走 babel 转译。
+      compile: {
+        include: [(modulePath: string) => /[\\/]node_modules[\\/]marked[\\/]/.test(modulePath)],
+      },
       postcss: {
         pxtransform: {
           enable: true,
