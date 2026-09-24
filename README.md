@@ -94,7 +94,7 @@ scripts/build-icons.mjs                从 lucide 拉取图标、生成图标表
 
 - 主题色、圆角等一律走 `--dsh-*` CSS 自定义属性（`styles/vars.scss` + `styles/theme.scss`），
   深色主题由 `app.tsx` 最外层的 `dsh-theme-dark` 类驱动；
-- 卡片详情（思考卡/工具卡/上下文行/系统提示/改动比较）统一走全屏详情弹层
+- 卡片详情（思考卡/工具卡/触发通知/后台任务/改动比较）统一走全屏详情弹层
   （`ui/cardDetail.tsx`，挂在 App 顶层），对齐安卓的 `CardDetailDialog`；
 - 平台确实做不到的（小程序无法把外链交给系统浏览器、没有 Android Keystore、没有
   `LazyColumn` 的 layoutInfo）在总表里标为「平台限制」并写清原因，不做无意义改写。
@@ -220,7 +220,8 @@ Mock 的事件类型、字段名与投影容器一律照主机口径写（`user/
   开发者工具逐页实拍已验收，真机未验证。详见 [docs/CUSTOM-NAVBAR.md](docs/CUSTOM-NAVBAR.md)。
 - `npm test`（`node --test`）：**全绿**。用例逐条移植自安卓单测，覆盖读数格式化与非有限输入、
   占位符、相对时间、文件链接地址、图片扩展名、工具行畸形参数、本轮产出文件校验、归档与空白会话复用、
-  上下文摘要、失败轮次文案、目标条、工具结果配对、未读红点、0.1.6 / 0.1.7 协议解码（含 multipart 二进制应答）、图片块协议、
+  失败轮次文案、目标条、工具结果配对、未读红点、0.1.6 / 0.1.7 协议解码（含 multipart 二进制应答）、
+  对话区可见性与轮次触发、job/follow 输出折叠与任务分段、模式说明分节、图片块协议、
   内容块编解码、分片搬运。
 - `npm run build:weapp`：**编译通过**，`dist/pages` 下六个页面齐全
   （index / chat / new / settings / pairing / archived；文件预览已并入聊天页的底部弹层，
@@ -231,6 +232,15 @@ Mock 的事件类型、字段名与投影容器一律照主机口径写（`user/
   `code`→`ptc`；`workspaceFiles/readBytes` 改 `options.range` 且应答为 multipart 二进制（传输层还原成 base64）；
   归档遇 `workspace/session-active` 先确认再 `stopActivity`；置顶改主机侧 `workspace/pinSession`。
   这些 RPC/流的参数形状已对本机 0.1.7 主机逐条实测。
+- 补齐 0.1.7 web 新功能（对照 Mac 端 `267bcde`）：
+  - 对话区：不再显示 system prompt 与普通上下文注入；唤醒本轮的非人类消息（定时任务、后台任务、goal、
+    webhook、插件……）按 inbox 认领判定，画成一条触发通知；隐藏 `/permission` 命令行。
+  - 历史分页：`session/page` / `session/follow` 改用 `turnWindow`（`maxMessages` 500、至少两个轮次起点）。
+  - 后台任务：会话面板分「进行中 / 已结束」两段，已结束可折叠、可清空（本端隐藏）；任务详情显示状态、
+    类型、用时、退出码（非 0 标红）、信号，停止带确认，实时输出走 `job/follow`（只留 128K 尾部）。
+  - 首次使用（无工作区、无会话）新建会话时调 `workspace/initializeDefault` 建默认工作区。
+  - 会话列表折叠的分组仍露出运行中的会话；新建页预设选择里内置模式带「模式说明」弹层。
+  以上参数形状对照本机 0.1.7-alpha.2 主机的 zod schema 核对过；UI 尚未在开发者工具里连真主机逐项实拍。
 - 微信开发者工具 + 本机 `dsh web`（0.1.6）实测：会话列表带真实标题与工作区分组、
   聊天页转写与用量、`workspace/changes` 改动卡与逐文件 diff、权限目录、归档恢复、
   `@` 文件链接都读的是主机真数据。

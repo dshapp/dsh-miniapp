@@ -11,6 +11,8 @@ import { agentPresetDisplayText, agentPresetMenuLabel } from '../../model/format
 import type { SessionId, WorkspaceId } from '../../model/types';
 import type { AgentPresetEntry } from '../../model/types';
 import { PageShell } from '../../ui/pageShell';
+import { PresetGuideSheet } from '../../ui/presetGuide';
+import { presetGuideFor } from '../../model/presetGuide';
 import styles from './index.module.scss';
 
 /**
@@ -32,6 +34,7 @@ export default function NewSessionPage(): JSX.Element {
   const [preparing, setPreparing] = React.useState(true);
   const [picking, setPicking] = React.useState(false);
   const [pickingPreset, setPickingPreset] = React.useState(false);
+  const [guidePreset, setGuidePreset] = React.useState<AgentPresetEntry | undefined>(undefined);
   const lastError = useStore(model.lastErrorStore);
 
   // 只在进入组合时跑一次（对齐 Android LaunchedEffect(Unit)）：每次页面重新显示都
@@ -39,7 +42,8 @@ export default function NewSessionPage(): JSX.Element {
   React.useEffect(() => {
     // 进页面就按「上次真正开出新会话的那个工作区」把会话开好；取不到才退回最近更新的那个。
     void model.loadAgentPresets();
-    void prepare(model.defaultNewSessionWorkspaceId());
+    // 首次使用（没有任何工作区与会话）时向主机要默认工作区。
+    void model.resolveNewSessionWorkspaceId().then(id => prepare(id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -195,11 +199,31 @@ export default function NewSessionPage(): JSX.Element {
                   {entry.description !== undefined && entry.description.length > 0 ? (
                     <Text className={styles.sheetPath}>{entry.description}</Text>
                   ) : null}
+                  {/* 内置模式带说明入口（对齐 web / Mac 预设旁的 ⓘ）；点它不选中这一行。 */}
+                  {presetGuideFor(entry) === undefined ? null : (
+                    <View
+                      className={styles.sheetGuide}
+                      onClick={event => {
+                        event.stopPropagation();
+                        setPickingPreset(false);
+                        setGuidePreset(entry);
+                      }}
+                    >
+                      <Icon name='info' className={styles.sheetGuideIcon} />
+                      <Text className={styles.sheetGuideText}>{Strings.presetGuideExplanation}</Text>
+                    </View>
+                  )}
                 </View>
               ))}
             </View>
           </React.Fragment>
         ) : null}
+        <PresetGuideSheet
+          open={guidePreset !== undefined}
+          title={guidePreset === undefined ? '' : agentPresetDisplayText(guidePreset).name}
+          guide={guidePreset === undefined ? undefined : presetGuideFor(guidePreset)}
+          onClose={() => setGuidePreset(undefined)}
+        />
       </View>
     </PageShell>
   );

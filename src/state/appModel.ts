@@ -40,6 +40,7 @@ import {
   sessionSelectPermission,
   sessionUpdateQueue,
   sessionCreate,
+  workspaceInitializeDefault,
   permissionCatalog,
   skillList,
   subagentInterrupt,
@@ -97,6 +98,11 @@ function describe(error: unknown): string {
     if (detail.length > 0) return detail;
   }
   return Strings.operationFailed;
+}
+
+/** 主机不认识这个方法（老版本主机）。 */
+function isMethodMissing(error: unknown): boolean {
+  return error instanceof ApiException && (error.code === 'method-not-found' || error.code === 'not-found');
 }
 
 export interface AppModelSnapshot {
@@ -1235,6 +1241,28 @@ export class AppModel {
       return value.sessionId;
     } catch (error) {
       this.lastErrorStore.set(describe(error));
+      return undefined;
+    }
+  }
+
+  /**
+   * 新建会话落在哪个工作区：先按 defaultNewSessionWorkspaceId；一个工作区、一个会话都没有时
+   * 算首次使用，向主机要默认工作区（web `initializeDefaultWorkspace`，对齐 Mac 267bcde）。
+   * 主机不再认为是首次、或调用失败时返回 undefined，交给工作区选择。
+   */
+  async resolveNewSessionWorkspaceId(): Promise<WorkspaceId | undefined> {
+    const preferred = this.defaultNewSessionWorkspaceId();
+    if (preferred !== undefined) return preferred;
+    if (workspaceStore.workspaces.length > 0 || sessionListStore.sessions.length > 0) return undefined;
+    const title = Strings.defaultWorkspaceTitle;
+    try {
+      const workspace = await workspaceInitializeDefault(this.requireTransport(), title, title);
+      if (workspace === undefined) return undefined;
+      workspaceStore.upsert(workspace);
+      return workspace.workspaceId;
+    } catch (error) {
+      // 老主机没有这个方法：静默退回「无工作区」，别在每次新建时报错。
+      if (!isMethodMissing(error)) this.lastErrorStore.set(Strings.defaultWorkspaceFailed);
       return undefined;
     }
   }

@@ -7,9 +7,9 @@ import type {
   SkillListValue, SubagentAddress, SubagentListEntry, SubagentListValue, SubagentMode, SessionAttachmentValue,
   WorkspaceFileBytesValue,
   WorkspaceFileTextValue, WorkspaceId, WorkspaceOrderValue, ModelCatalogValue,
-  PermissionPresetOption,
+  PermissionPresetOption, WorkspaceView,
 } from '../model/types';
-import { decodeHistoryEntry, decodeSessionSummary } from '../model/frames';
+import { decodeHistoryEntry, decodeSessionSummary, decodeWorkspaceView } from '../model/frames';
 import {
   decodeChangedFileDiff,
   decodeTurnChangesSummary,
@@ -348,6 +348,19 @@ export async function workspaceSetPinned(
   const value = await transport.call(pinned ? 'workspace/pinSession' : 'workspace/unpinSession', request({ sessionId }));
   const raw = jget(value, 'pinnedSessionIds');
   return (Array.isArray(raw) ? raw : []).map(str).filter((id): id is string => id !== undefined);
+}
+
+/**
+ * 首次使用的默认工作区（0.1.7 `workspace/initializeDefault`，对齐 web `initializeDefaultWorkspace`）。
+ * 是否算"首次"由主机独自判断（工作区注册表与会话历史都为空）；不再是首次时应答为空，返回 undefined。
+ */
+export async function workspaceInitializeDefault(
+  transport: RpcTransport,
+  directoryName: string,
+  title: string,
+): Promise<WorkspaceView | undefined> {
+  const value = await transport.call('workspace/initializeDefault', request({ directoryName, title }));
+  return decodeWorkspaceView(jget(value, 'workspace'));
 }
 
 // —— 后台任务（0.1.7 的 `job` 命名空间） ————————————————————————

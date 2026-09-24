@@ -390,7 +390,11 @@ export default function SessionListPage(): JSX.Element {
           <Icon name={isCollapsed ? 'chevron-right' : 'chevron-down'} className={styles.chevron} />
         </View>,
       );
-      if (isCollapsed) continue;
+      if (isCollapsed) {
+        // 折叠的分组仍露出运行中的会话，正在跑的活不会被藏起来（对齐 web 0.1.7 / Mac 267bcde）。
+        for (const summary of group.sessions) if (summary.running) rows.push(renderRow(summary));
+        continue;
+      }
       const limit = PAGE_SIZE * (pages[group.id] ?? 1);
       const shown = group.sessions.slice(0, limit);
       for (const summary of shown) rows.push(renderRow(summary));

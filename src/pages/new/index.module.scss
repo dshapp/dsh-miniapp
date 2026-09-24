@@ -139,3 +139,22 @@
   color: var(--dsh-color-primary);
   font-size: 16px;
 }
+
+/* 内置模式的「模式说明」入口：挂在预设行里，点它不选中这一行。 */
+.sheetGuide {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 2px 0;
+}
+
+.sheetGuideIcon {
+  font-size: 12px;
+  color: var(--dsh-color-primary);
+}
+
+.sheetGuideText {
+  font-size: 12px;
+  color: var(--dsh-color-primary);
+}
