@@ -3,7 +3,6 @@ import { arr, firstLine, int, jget, str, type JsonElement } from './json';
 import { parseArgsMap } from './toolRow';
 import {
   agentPresetIsBuiltIn,
-  isSubagentOrigin,
   type AgentPresetEntry,
   type SessionId,
   type SessionSearchItem,
@@ -214,36 +213,60 @@ export function sessionMatchesSearch(title: string, workspaceName: string | unde
 }
 
 export const SESSION_SEARCH_RESULT_LIMIT = 20;
+const SESSION_SEARCH_QUERY_MAX_CODE_UNITS = 500;
+
+/** 把输入限制在 session/search 的线上契约里：去 NUL、截到 500 个 code unit（不劈开代理对），对齐 web。 */
+export function sanitizeSearchQuery(value: string): string {
+  const withoutNul = value.split('\0').join('');
+  if (withoutNul.length <= SESSION_SEARCH_QUERY_MAX_CODE_UNITS) return withoutNul;
+  let end = SESSION_SEARCH_QUERY_MAX_CODE_UNITS;
+  const last = withoutNul.charCodeAt(end - 1);
+  const next = withoutNul.charCodeAt(end);
+  if (last >= 0xd800 && last <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) end -= 1;
+  return withoutNul.slice(0, end);
+}
 
 export interface SessionSearchRows {
   sessions: SessionSummary[];
   hasMore: boolean;
 }
 
-export function mergeSessionSearchResults(
-  localMatches: SessionSummary[],
-  remoteHits: SessionSearchItem[],
-  byId: Map<SessionId, SessionSummary>,
+/**
+ * 会话搜索结果，逐条对齐 web deriveSearchResults：
+ * 本地标题/工作区名子串命中按 updatedAt 新到旧领先，主机内容命中按后端顺序去重接在后面，
+ * 截到 limit 条；hasMore = 后端 hasMore || 合并总数超过 limit。
+ * `listed` 是主列表可见的名册（已滤掉空白、subagent 与已归档），主机命中不在其中的直接丢弃。
+ */
+export function deriveSessionSearchResults(
+  listed: SessionSummary[],
+  workspaceTitles: Map<SessionId, string>,
+  liveTitle: (sessionId: SessionId) => string | undefined,
+  query: string,
+  remote: { items: SessionSearchItem[]; hasMore: boolean },
   limit = SESSION_SEARCH_RESULT_LIMIT,
 ): SessionSearchRows {
+  const needle = query.trim().toLowerCase();
+  if (needle.length === 0) return { sessions: [], hasMore: false };
+  const local = listed
+    .filter(summary =>
+      sessionDisplayTitle(summary, liveTitle(summary.sessionId)).toLowerCase().includes(needle)
+      || (sessionWorkspaceName(workspaceTitles.get(summary.sessionId), summary.cwd) ?? '').toLowerCase().includes(needle),
+    )
+    .sort((a, b) => (a.updatedAt !== b.updatedAt ? b.updatedAt - a.updatedAt : a.sessionId < b.sessionId ? -1 : 1));
+  const byId = new Map(listed.map(summary => [summary.sessionId, summary]));
   const ordered: SessionSummary[] = [];
   const seen = new Set<SessionId>();
-  for (const summary of localMatches) {
-    if (!seen.has(summary.sessionId)) {
-      seen.add(summary.sessionId);
-      ordered.push(summary);
-    }
-  }
-  for (const hit of remoteHits) {
+  const include = (summary: SessionSummary): void => {
+    if (seen.has(summary.sessionId)) return;
+    seen.add(summary.sessionId);
+    ordered.push(summary);
+  };
+  for (const summary of local) include(summary);
+  for (const hit of remote.items) {
     const summary = byId.get(hit.sessionId);
-    if (summary === undefined) continue;
-    if (summary.blank || isSubagentOrigin(summary)) continue;
-    if (!seen.has(summary.sessionId)) {
-      seen.add(summary.sessionId);
-      ordered.push(summary);
-    }
+    if (summary !== undefined) include(summary);
   }
-  return { sessions: ordered.slice(0, limit), hasMore: ordered.length > limit };
+  return { sessions: ordered.slice(0, limit), hasMore: remote.hasMore || ordered.length > limit };
 }
 
 // 列表行尾 ————————————————————————————————————————————————————

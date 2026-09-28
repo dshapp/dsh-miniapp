@@ -17,14 +17,12 @@ import { getAppModel } from '../../state/appModel';
 import { sessionListStore, workspaceStore } from '../../state/stores';
 import { readStorage, Store, useStore, useSubscribed, writeStorage } from '../../state/store';
 import {
-  mergeSessionSearchResults,
+  deriveSessionSearchResults,
   relativeTime,
   resolveSessionRowTrailing,
+  sanitizeSearchQuery,
   sessionAwaitingBadge,
   sessionListTitle,
-  sessionMatchesSearch,
-  sessionSearchName,
-  sessionWorkspaceName,
   SESSION_SEARCH_RESULT_LIMIT,
 } from '../../model/format';
 import type { SessionId, SessionSummary, WorkspaceId } from '../../model/types';
@@ -167,11 +165,12 @@ export default function SessionListPage(): JSX.Element {
     Taro.stopPullDownRefresh();
   });
 
-  // 边打边搜：本地标题匹配即时生效，主机内容搜索由 appModel 按 250ms 防抖发出。
+  // 边打边搜：本地标题匹配即时生效，主机内容搜索按 250ms 防抖发出。
+  const normalizedQuery = query.trim();
   React.useEffect(() => {
-    const timer = setTimeout(() => model.search(query), 250);
+    const timer = setTimeout(() => model.search(normalizedQuery), 250);
     return () => clearTimeout(timer);
-  }, [query, model]);
+  }, [normalizedQuery, model]);
 
   // 归档这一道闸加在渲染口径里，而不是靠归档时把行从名册摘掉：主机 \`session/list\`
   // 会把已归档的会话带回来，只摘行的话每次刷新都会重现一次（对齐 Android listSessionsVisible）。
@@ -183,26 +182,20 @@ export default function SessionListPage(): JSX.Element {
 
   const erroredIds = new Set(erroredSessionIds);
   const workspaceTitles = React.useMemo(() => workspaceStore.bySessionMap(), [workspaces]);
-  const normalizedQuery = query.trim();
   const searching = finding && normalizedQuery.length > 0;
-  const remoteHits = search.query === normalizedQuery ? search.hits ?? [] : [];
+  // 主机命中只认当前查询：换了查询词，旧命中立刻丢掉并视为还在等（防抖 + 请求期间）。
+  const searchPending = search.query !== normalizedQuery;
 
   const searchRows = React.useMemo(() => {
     if (!searching) return { sessions: [] as SessionSummary[], hasMore: false };
-    const localMatches = listed
-      .filter(summary =>
-        sessionMatchesSearch(
-          sessionSearchName(summary, undefined),
-          sessionWorkspaceName(workspaceTitles.get(summary.sessionId), summary.cwd),
-          normalizedQuery,
-        ),
-      )
-      .sort((a, b) => b.updatedAt - a.updatedAt);
-    const byId = new Map(listed.map(summary => [summary.sessionId, summary]));
-    return mergeSessionSearchResults(localMatches, remoteHits, byId, SESSION_SEARCH_RESULT_LIMIT);
-  }, [searching, normalizedQuery, listed, remoteHits, workspaceTitles]);
-
-  const searchUnavailable = searching && search.query === normalizedQuery && search.contentUnavailable;
+    return deriveSessionSearchResults(
+      listed,
+      workspaceTitles,
+      id => model.store(id)?.title,
+      normalizedQuery,
+      searchPending ? { items: [], hasMore: false } : search,
+    );
+  }, [searching, normalizedQuery, listed, search, searchPending, workspaceTitles, model]);
 
   const ordered = React.useCallback(
     (items: SessionSummary[]): SessionSummary[] => {
@@ -360,13 +353,6 @@ export default function SessionListPage(): JSX.Element {
       </View>,
     );
     for (const summary of searchRows.sessions) rows.push(renderRow(summary));
-    if (searchUnavailable) {
-      rows.push(
-        <View key='search-unavailable' className={styles.notice}>
-          <Text>{Strings.searchUnavailable}</Text>
-        </View>,
-      );
-    }
     if (searchRows.hasMore) {
       rows.push(
         <View key='search-more' className={styles.notice}>
@@ -455,7 +441,7 @@ export default function SessionListPage(): JSX.Element {
                 value={query}
                 focus={searchFocused}
                 placeholder={Strings.searchSessions}
-                onInput={setQuery}
+                onInput={value => setQuery(sanitizeSearchQuery(value))}
               />
             ) : (
               <NavTitle text={profileName ?? Strings.appName} />
@@ -502,7 +488,7 @@ export default function SessionListPage(): JSX.Element {
         {/* 四个空态互斥，按 Android StatusOverlay 的 when 次序取第一条命中的：
             并列判断会让「搜索无结果 + 名册为空 + 连接失败」同时画出两层提示。 */}
         {/* 只有真的要画空态时才铺这层居中容器：有行的时候它不能占位。 */}
-        {isEmpty || (searching && searchRows.sessions.length === 0) ? (
+        {isEmpty || (searching && !searchPending && searchRows.sessions.length === 0) ? (
           <View className={styles.stateArea}>
             {isEmpty && connectionIsFailed ? (
               <EmptyState name='cloud-off' title={Strings.offlineBannerTitle} description={Strings.offlineBannerBody} />
@@ -511,7 +497,7 @@ export default function SessionListPage(): JSX.Element {
               <View className={styles.centered}>
                 <Icon name='loader-circle' spin className={styles.centeredGlyph} />
               </View>
-            ) : searching && searchRows.sessions.length === 0 ? (
+            ) : searching && !searchPending && searchRows.sessions.length === 0 ? (
               <EmptyState name='search' title={Strings.searchNoResults} description={normalizedQuery} />
             ) : !searching && isEmpty && connection.kind === 'connected' ? (
               <EmptyState name='message-circle' title={Strings.noSessions} />

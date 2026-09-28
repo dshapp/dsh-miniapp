@@ -525,7 +525,7 @@ class WorkspaceStore {
   bySessionMap(): Map<SessionId, string> {
     const result = new Map<SessionId, string>();
     for (const workspace of this.workspacesStore.get()) {
-      for (const id of workspace.sessionIds) result.set(id, workspace.title);
+      for (const id of workspace.sessionIds) if (!result.has(id)) result.set(id, workspace.title);
     }
     return result;
   }

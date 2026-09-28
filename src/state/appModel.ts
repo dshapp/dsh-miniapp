@@ -69,6 +69,7 @@ import type {
   SessionAddress,
   SessionHistoryValue,
   SessionId,
+  SessionSearchItem,
   SubagentAddress,
   WorkspaceId,
 } from '../model/types';
@@ -670,31 +671,25 @@ export class AppModel {
   // —— 搜索 ————————————————————————————————————————————————
 
   /**
-   * 运行一次会话搜索。
+   * 运行一次主机内容搜索（session/search，可选能力）。
    *
-   * 主机的 session/search 是可选的内容检索：部署把它关掉时每一次调用都以失败告终。
-   * 失败不等于「没有命中」——页面仍用本地标题/工作区匹配兜底，所以这里把「不可用」
-   * 单独发布出来，而不是把失败混进空结果里。
-   *
+   * 失败（部署关掉了内容检索、没连上）落成这次查询的空命中：页面只显示本地命中，不提示（对齐 web）。
    * 边打边搜会叠很多次请求，晚到的旧结果必须丢掉：用代次比对，只有最新一次能落库。
    */
   search(query: string): void {
     const trimmed = query.trim();
     const generation = this.searchGeneration + 1;
     this.searchGeneration = generation;
+    const settle = (items: SessionSearchItem[], hasMore: boolean): void => {
+      if (generation === this.searchGeneration) this.searchStore.set({ query: trimmed, items, hasMore });
+    };
     if (trimmed.length === 0 || this.transport === undefined) {
-      this.searchStore.set({ query: '', contentUnavailable: false });
+      settle([], false);
       return;
     }
-    void sessionSearch(this.requireTransport(), trimmed)
-      .then(result => {
-        if (generation !== this.searchGeneration) return;
-        this.searchStore.set({ query: trimmed, hits: result.items, contentUnavailable: false });
-      })
-      .catch(() => {
-        if (generation !== this.searchGeneration) return;
-        this.searchStore.set({ query: trimmed, hits: [], contentUnavailable: true });
-      });
+    void sessionSearch(this.transport, trimmed)
+      .then(result => settle(result.items, result.hasMore))
+      .catch(() => settle([], false));
   }
 
   // —— 会话管理 ————————————————————————————————————————————

@@ -369,7 +369,6 @@ const TABLE = {
   planApproved: ['Plan approved', '计划已通过'],
   approvalEscalation: ['Tool %s requests privileged execution', '工具 %s 请求越权执行'],
   searchNoResults: ['No matching sessions', '没有匹配的会话'],
-  searchUnavailable: ['Content search is unavailable. Showing name matches.', '内容搜索暂不可用，仅显示名称匹配。'],
   searchHasMore: ['Showing the first %s results. Narrow your search.', '仅显示前 %s 条结果，请缩小搜索范围。'],
   presetStandardName: ['Standard mode', '标准模式'],
   presetStandardDescription: [
