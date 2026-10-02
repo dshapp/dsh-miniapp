@@ -1,3 +1,4 @@
+import { arr, bool, jget, str, type JsonElement } from './json';
 import type { SessionId } from './types';
 import type { SessionAwaitingKind } from './format';
 
@@ -27,12 +28,92 @@ export interface AskUserQuestionItem {
 }
 
 export interface QuestionRequested {
+  /** 待应答 waterfall 的关联 id；continued 问题没有，它改走 `userQuestions/answer`。 */
   eventId?: string;
   sessionId: SessionId;
   questions: AskUserQuestionItem[];
+  /** 这组问题所属的 `ask_user_question` 调用（请求里的 `wait.callId`，0.2.0）。 */
+  callId?: string;
+  /** 工具调用已经以 pending 返回：agent 继续干活，这时的回答是迟到回答。 */
+  continued?: boolean;
+  /** 限时等待放行 agent 的时刻（epoch 毫秒，来自 `attachWait` 认领）；阻塞式提问或用户已按住时没有。 */
+  deadline?: number;
+  /** 用户改了草稿或点了「慢慢回答」：本端一直按住等待，直到提交或取消。 */
+  held?: boolean;
+}
+
+/** 弹层与草稿的稳定身份：倒计时开始、按住等待都不该把正在填的草稿重置掉（对齐 Android `identity`）。 */
+export function questionIdentity(question: QuestionRequested): string {
+  return question.eventId === undefined && question.callId !== undefined
+    ? 'call:' + question.callId
+    : 'event:' + (question.eventId ?? '');
 }
 
 export interface QuestionAnswer { id: string; selected: string[]; custom?: string }
+
+/** 一整组答案的 wire 形状 `{answers:[{id, selected, custom?}]}`，waterfall 结果与迟到回答共用。 */
+export function questionAnswerPayload(answers: QuestionAnswer[]): { answers: { id: string; selected: string[]; custom?: string }[] } {
+  return {
+    answers: answers.map(answer => (answer.custom === undefined
+      ? { id: answer.id, selected: answer.selected.slice() }
+      : { id: answer.id, selected: answer.selected.slice(), custom: answer.custom })),
+  };
+}
+
+/**
+ * `userQuestions` 投影里还能作答的那一半（0.2.0）：仍可回答的限时提问，按提问顺序。
+ * `state` 为 `open`（工具调用还可能直接拿到答案）或 `continued`（已 pending 返回）。
+ */
+export interface UserQuestionRow { callId: string; questions: AskUserQuestionItem[]; state: string }
+
+// Android 用 kotlinx @Serializable 生成提问项的解码；TS 侧没有对应模块，
+// 就地解一遍，避免为一个小结构再引一层依赖。
+export function decodeAskUserQuestionItem(value: JsonElement | undefined): AskUserQuestionItem | undefined {
+  const id = str(jget(value, 'id'));
+  // `id` / `question` / 选项的 `label` 在 Android 的 @Serializable 里都没有默认值，
+  // 缺任意一个整条题目会被 mapNotNull 丢掉（Frames.kt:39/44-53）。这里照同样的必填
+  // 口径丢弃，而不是兜底成空串——否则畸形帧在小程序上会弹出「无标题」或少一个选项的题。
+  if (id === undefined) return undefined;
+  const question = str(jget(value, 'question'));
+  if (question === undefined) return undefined;
+  const rawOptions = arr(jget(value, 'options')) ?? [];
+  const options: AskUserQuestionOption[] = [];
+  for (const item of rawOptions) {
+    const label = str(jget(item, 'label'));
+    if (label === undefined) return undefined;
+    if (label.length > 0) options.push({ label, description: str(jget(item, 'description')) });
+  }
+  const intentRaw = jget(value, 'intent');
+  const intentKind = str(jget(intentRaw, 'kind'));
+  const intent: QuestionIntent | undefined =
+    intentKind === undefined ? undefined : { kind: intentKind, approve: str(jget(intentRaw, 'approve')) };
+  return {
+    id,
+    question,
+    header: str(jget(value, 'header')),
+    detail: str(jget(value, 'detail')),
+    options: options.length > 0 ? options : undefined,
+    multiSelect: bool(jget(value, 'multiSelect')),
+    intent,
+  };
+}
+
+/** 解 `userQuestions` 投影的 `active` 半边；畸形行丢掉。 */
+export function decodeUserQuestions(value: JsonElement | undefined): UserQuestionRow[] {
+  const rows: UserQuestionRow[] = [];
+  for (const row of arr(jget(value, 'active')) ?? []) {
+    const callId = str(jget(row, 'callId'));
+    if (callId === undefined) continue;
+    const questions = (arr(jget(row, 'questions')) ?? [])
+      .map(decodeAskUserQuestionItem)
+      .filter((item): item is AskUserQuestionItem => item !== undefined);
+    rows.push({ callId, questions, state: str(jget(row, 'state')) ?? 'open' });
+  }
+  return rows;
+}
+
+/** 迟到的提问回答里的一道题和它的答案：选中的选项加自填文字；跳过时为空。 */
+export interface QuestionReplyPair { question: string; answers: string[] }
 
 /** 计划评审（exit_plan_mode）的路由与应答编码，与 iOS/web 完全一致。 */
 export interface PlanReviewFlow {

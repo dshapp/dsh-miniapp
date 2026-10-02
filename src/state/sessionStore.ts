@@ -80,7 +80,7 @@ import {
   type SessionQueueFrame,
 } from '../model/frames';
 import type { TurnChangesAddress } from '../model/turnChanges';
-import type { ApprovalRequested, QuestionRequested } from '../model/questionFlow';
+import { decodeUserQuestions, type ApprovalRequested, type QuestionRequested, type UserQuestionRow } from '../model/questionFlow';
 import { Strings } from '../i18n/strings';
 import { turnFailureMessage } from '../model/turnFailure';
 import type { CachedWindow } from './cache';
@@ -603,6 +603,19 @@ export class SessionStore {
   readonly agentPresetStore = new Store<string | undefined>(undefined);
   readonly pendingApprovalStore = new Store<ApprovalRequested | undefined>(undefined);
   readonly pendingQuestionStore = new Store<QuestionRequested | undefined>(undefined);
+  /** `userQuestions` 投影（0.2.0）：本会话里仍可作答的限时提问。 */
+  readonly userQuestionsStore = new Store<UserQuestionRow[]>([]);
+  /** 用户收起了弹层的 continued 问题（web `nav.close`）：仍可作答，输入框上方给入口重开。 */
+  readonly hiddenQuestionCallsStore = new Store<ReadonlySet<string>>(new Set());
+  /** 本端已经迟到作答的 continued 问题，在投影把它结掉之前先藏起来。 */
+  readonly repliedQuestionCallsStore = new Store<ReadonlySet<string>>(new Set());
+  /**
+   * 可在输入区作答的 continued 问题（web `publishContinuedQuestions`）：投影里 continued 的行，
+   * 去掉已经在 inbox 里排着回答、或本端已经答过的。由 refreshQuestionPresentation 派生。
+   */
+  readonly continuedQuestionsStore = new Store<QuestionRequested[]>([]);
+  /** 弹层该呈现的问题：实时 waterfall 优先，否则是第一个没被收起的 continued 问题。 */
+  readonly presentedQuestionStore = new Store<QuestionRequested | undefined>(undefined);
   readonly queueStore = new Store<QueuedInboxItem[]>([]);
   readonly jobsStore = new Store<JobView[]>([]);
   /**
@@ -734,6 +747,7 @@ export class SessionStore {
   }
   set pendingQuestion(value: QuestionRequested | undefined) {
     this.pendingQuestionStore.set(value);
+    this.refreshQuestionPresentation();
   }
 
   get queue(): QueuedInboxItem[] {
@@ -741,6 +755,68 @@ export class SessionStore {
   }
   set queue(value: QueuedInboxItem[]) {
     this.queueStore.set(value);
+    this.refreshQuestionPresentation();
+  }
+
+  get userQuestions(): UserQuestionRow[] {
+    return this.userQuestionsStore.get();
+  }
+  set userQuestions(value: UserQuestionRow[]) {
+    if (JSON.stringify(value) === JSON.stringify(this.userQuestionsStore.get())) return;
+    this.userQuestionsStore.set(value);
+    this.refreshQuestionPresentation();
+  }
+
+  get continuedQuestions(): QuestionRequested[] {
+    return this.continuedQuestionsStore.get();
+  }
+
+  get presentedQuestion(): QuestionRequested | undefined {
+    return this.presentedQuestionStore.get();
+  }
+
+  hideQuestion(callId: string): void {
+    const hidden = this.hiddenQuestionCallsStore.get();
+    if (hidden.has(callId)) return;
+    this.hiddenQuestionCallsStore.set(new Set([...Array.from(hidden), callId]));
+    this.refreshQuestionPresentation();
+  }
+
+  reopenQuestion(callId: string): void {
+    const hidden = this.hiddenQuestionCallsStore.get();
+    if (!hidden.has(callId)) return;
+    this.hiddenQuestionCallsStore.set(new Set(Array.from(hidden).filter(item => item !== callId)));
+    this.refreshQuestionPresentation();
+  }
+
+  markQuestionReplied(callId: string): void {
+    const replied = this.repliedQuestionCallsStore.get();
+    if (replied.has(callId)) return;
+    this.repliedQuestionCallsStore.set(new Set([...Array.from(replied), callId]));
+    this.refreshQuestionPresentation();
+  }
+
+  /**
+   * 重算 continued 问题与弹层该呈现的那一个（对齐 Android `continuedQuestions` /
+   * `presentedQuestion` 两个派生值）。内容没变时沿用旧对象，弹层不会因为无关的队列帧重绘。
+   */
+  private refreshQuestionPresentation(): void {
+    const queued = new Set(
+      this.queueStore.get().map(item => item.questionCallId).filter((item): item is string => item !== undefined),
+    );
+    const replied = this.repliedQuestionCallsStore.get();
+    const continued: QuestionRequested[] = [];
+    for (const row of this.userQuestionsStore.get()) {
+      if (row.state !== 'continued' || queued.has(row.callId) || replied.has(row.callId)) continue;
+      continued.push({ sessionId: this.sessionId, questions: row.questions, callId: row.callId, continued: true });
+    }
+    const previous = this.continuedQuestionsStore.get();
+    if (JSON.stringify(previous) !== JSON.stringify(continued)) this.continuedQuestionsStore.set(continued);
+    const list = this.continuedQuestionsStore.get();
+    const hidden = this.hiddenQuestionCallsStore.get();
+    const presented = this.pendingQuestionStore.get()
+      ?? list.find(question => !hidden.has(question.callId ?? ''));
+    this.presentedQuestionStore.set(presented);
   }
 
   get jobs(): JobView[] {
@@ -1076,6 +1152,8 @@ export class SessionStore {
   open(sessionId: SessionId): void {
     this.sessionId = sessionId;
     this.pendingApproval = undefined;
+    this.hiddenQuestionCallsStore.set(new Set());
+    this.repliedQuestionCallsStore.set(new Set());
     this.pendingQuestion = undefined;
     this.resetWindow();
   }
@@ -1509,7 +1587,8 @@ export class SessionStore {
       node = this.claimedSteeringIds.has(id)
         ? { kind: 'steering', seq: event.seq, time: event.time, messageId: id, content }
         : { kind: 'user', seq: event.seq, time: event.time, messageId: id, content };
-    } else if (this.isWaking(id)) {
+    } else if (this.isWaking(id) || sourceKind === 'user-question-reply') {
+      // 迟到的提问回答是用户自己的答案（web `question-reply` 节点），不论它是否唤醒了这一轮都要画。
       node = { kind: 'turnTrigger', data: { seq: event.seq, time: event.time, messageId: id, content, source } };
     } else {
       // 普通上下文注入不进对话区（web `isVisibleChatNode`）。
@@ -2304,6 +2383,7 @@ export class SessionStore {
     this.imageLimits = undefined;
     this.permissionProjection = undefined;
     this.permissions = undefined;
+    this.userQuestions = [];
     for (const [key, entry] of Array.from(this.projections.entries())) {
       this.decodeSingleProjection(key, entry[0]);
     }
@@ -2388,6 +2468,10 @@ export class SessionStore {
         }
         break;
       }
+      case 'userQuestions':
+        // 0.2.0：限时提问的会话投影 `{timed, active, settled}`，这里只要 active。
+        this.userQuestions = decodeUserQuestions(value);
+        break;
       case 'agentPreset': {
         const preset = str(value);
         if (preset !== undefined && preset.length > 0) this.agentPreset = preset;

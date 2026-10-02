@@ -418,6 +418,53 @@
   font-size: 16px;
 }
 
+/* 模型搜索框（web `ModelSelect`，超过 4 个模型才出现）：对齐 Android OutlinedTextField 的
+   leading 搜索图标 + trailing 清除按钮。 */
+.modelSearchRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  margin: 4px 0 8px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--dsh-color-border);
+}
+
+.modelSearchGlyph {
+  font-size: 16px;
+  color: var(--dsh-color-on-surface-variant);
+}
+
+.modelSearchInput {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  font-size: 14px;
+  color: var(--dsh-color-text);
+}
+
+.modelSearchPlaceholder {
+  color: var(--dsh-color-text-sub);
+}
+
+.modelSearchClear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+  color: var(--dsh-color-on-surface-variant);
+}
+
+.modelSearchEmpty {
+  display: block;
+  padding: 16px 0;
+  font-size: 14px;
+  color: var(--dsh-color-on-surface-variant);
+}
+
 // —— 归档 ——————————————————————————————————————————————————
 
 .archiveRow {
@@ -726,6 +773,27 @@
   padding: 6px 0;
   font-size: 12px;
   color: var(--dsh-color-bad);
+}
+
+/* 限时等待状态行（web `wait.*`）：bodySmall + onSurfaceVariant，「慢慢回答」是文字按钮。 */
+.questionWaitRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.questionWait {
+  display: block;
+  padding: 6px 0;
+  font-size: 12px;
+  color: var(--dsh-color-on-surface-variant);
+}
+
+.questionWaitAction {
+  padding: 6px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dsh-color-primary);
 }
 
 .questionFooter {

@@ -32,11 +32,10 @@ import {
 import type { SessionAwaitingKind } from '../model/format';
 import { liveTurnFailureMessage } from '../model/turnFailure';
 import {
+  decodeAskUserQuestionItem,
   pendingInteractionKind,
   type ApprovalRequested,
   type AskUserQuestionItem,
-  type AskUserQuestionOption,
-  type QuestionIntent,
   type QuestionRequested,
 } from '../model/questionFlow';
 import type {
@@ -190,36 +189,13 @@ export function sessionIdOfJobs(streamId: string): SessionId | undefined {
 /** 唯一一条 `job/follow` 观察（同一时间只看一个任务的输出，对齐 web）。 */
 export const JOB_OUTPUT_STREAM = 'job-output';
 
-// Android 用 kotlinx @Serializable 生成提问项的解码；TS 侧没有对应模块，
-// 就地解一遍，避免为一个小结构再引一层依赖。
-function decodeAskUserQuestionItem(value: JsonElement | undefined): AskUserQuestionItem | undefined {
-  const id = str(jget(value, 'id'));
-  // `id` / `question` / 选项的 `label` 在 Android 的 @Serializable 里都没有默认值，
-  // 缺任意一个整条题目会被 mapNotNull 丢掉（Frames.kt:39/44-53）。这里照同样的必填
-  // 口径丢弃，而不是兜底成空串——否则畸形帧在小程序上会弹出「无标题」或少一个选项的题。
-  if (id === undefined) return undefined;
-  const question = str(jget(value, 'question'));
-  if (question === undefined) return undefined;
-  const rawOptions = arr(jget(value, 'options')) ?? [];
-  const options: AskUserQuestionOption[] = [];
-  for (const item of rawOptions) {
-    const label = str(jget(item, 'label'));
-    if (label === undefined) return undefined;
-    if (label.length > 0) options.push({ label, description: str(jget(item, 'description')) });
-  }
-  const intentRaw = jget(value, 'intent');
-  const intentKind = str(jget(intentRaw, 'kind'));
-  const intent: QuestionIntent | undefined =
-    intentKind === undefined ? undefined : { kind: intentKind, approve: str(jget(intentRaw, 'approve')) };
-  return {
-    id,
-    question,
-    header: str(jget(value, 'header')),
-    detail: str(jget(value, 'detail')),
-    options: options.length > 0 ? options : undefined,
-    multiSelect: bool(jget(value, 'multiSelect')),
-    intent,
-  };
+/** 一个限时提问的前台等待认领（0.2.0 `userQuestions/attachWait`），按 waterfall 事件分。 */
+export function questionWaitStreamId(eventId: string): string {
+  return `question-wait:${eventId}`;
+}
+
+export function eventIdOfQuestionWait(streamId: string): string | undefined {
+  return streamId.startsWith('question-wait:') ? streamId.slice('question-wait:'.length) : undefined;
 }
 
 export interface StreamCoordinatorOptions {
@@ -267,6 +243,11 @@ export class StreamCoordinator {
 
   private readonly removedSessionIds = new Set<SessionId>();
   private readonly pendingEventSessions = new Map<string, SessionId>();
+  /**
+   * 每个已认领限时提问的倒计时，按 waterfall 事件分。计时归 coordinator 而不归弹层
+   *（web `PendingQuestion`）：弹层不在屏上也得按时超时，否则认领会把 agent 卡过期限。
+   */
+  private readonly questionTimers = new Map<string, ReturnType<typeof setTimeout>>();
   /** 0.1.5 的 control 队列状态（baseline 的 queues 块与 queue 帧）；0.1.6 不再有这条通道。 */
   private queues = new Map<SessionId, QueuedInboxItem[]>();
   /**
@@ -417,6 +398,7 @@ export class StreamCoordinator {
 
   private dropStaleInteractions(): void {
     this.state.patch({ remoteEventClientId: undefined });
+    for (const eventId of Array.from(this.pendingEventSessions.keys())) this.endQuestionWait(eventId);
     this.pendingEventSessions.clear();
     this.deps.listStore.clearAllAwaitingUser();
     for (const store of this.deps.allSessions()) {
@@ -434,6 +416,12 @@ export class StreamCoordinator {
         this.handleItem(event.streamId, event.value);
         break;
       case 'failure': {
+        // 认领失败（别的端先认领了、或问题已经结掉）：撤掉这条订阅，免得每次重连都再开一遍。
+        // 本端不计时，主机自己的计时器照样会放行 agent。
+        if (eventIdOfQuestionWait(event.streamId) !== undefined) {
+          this.mux?.unsubscribe(event.streamId);
+          break;
+        }
         if (event.streamId === JOB_OUTPUT_STREAM) {
           const observed = this.observedJobStore.get();
           if (observed !== undefined) {
@@ -475,6 +463,12 @@ export class StreamCoordinator {
         break;
       }
       default: {
+        const waitEventId = eventIdOfQuestionWait(streamId);
+        if (waitEventId !== undefined) {
+          const remaining = dbl(jget(value, 'remainingMs'));
+          if (remaining !== undefined) this.startQuestionCountdown(waitEventId, remaining);
+          return;
+        }
         const jobsSessionId = sessionIdOfJobs(streamId);
         if (jobsSessionId !== undefined) {
           this.handleJobList(jobsSessionId, value);
@@ -590,7 +584,19 @@ export class StreamCoordinator {
           .filter((item): item is AskUserQuestionItem => item !== undefined);
         if (questions.length === 0) return;
         this.pendingEventSessions.set(frame.eventId, sessionId);
-        const question: QuestionRequested = { eventId: frame.eventId, sessionId, questions };
+        const wait = jget(frame.request, 'wait');
+        const callId = str(jget(wait, 'callId'));
+        const question: QuestionRequested = callId === undefined
+          ? { eventId: frame.eventId, sessionId, questions }
+          : { eventId: frame.eventId, sessionId, questions, callId };
+        // 限时等待先认领再计时（web `answerQuestion`）：认领流的第一帧是主机算好的剩余时长，
+        // 握着认领才轮到本端（而不是主机的计时器）决定何时超时。
+        if (bool(jget(wait, 'timed')) === true && callId !== undefined) {
+          this.mux?.subscribe(questionWaitStreamId(frame.eventId), 'userQuestions/attachWait', {
+            agentId: sessionId,
+            callId,
+          });
+        }
         const store = this.deps.sessionUpsert(sessionId);
         store.setQuestion(question);
         this.syncAwaitingUser(sessionId, store);
@@ -602,7 +608,80 @@ export class StreamCoordinator {
     }
   }
 
+  /**
+   * 本端自己应答了一个 waterfall：应答方收不到自己那份结果的撤回帧，所以在这里就地撤掉
+   *（认领、倒计时、通知、列表徽标）。
+   */
+  retireLocally(eventId: string | undefined): void {
+    if (eventId !== undefined) this.retireWaterfall(eventId);
+  }
+
+  /**
+   * 用户开始作答或点了「慢慢回答」（web `engage`/`takeTime`）：停掉倒计时，认领一直握着，
+   * agent 就一直等到本端提交或取消。
+   */
+  holdQuestion(question: QuestionRequested): void {
+    const eventId = question.eventId;
+    if (eventId === undefined) return;
+    const store = this.deps.sessionLookup(question.sessionId);
+    const pending = store?.pendingQuestion;
+    if (store === undefined || pending === undefined || pending.eventId !== eventId) return;
+    if (pending.held === true || pending.deadline === undefined) return;
+    this.clearQuestionTimer(eventId);
+    store.setQuestion({ ...pending, held: true, deadline: undefined });
+  }
+
+  /** 按主机给的剩余时间给一个已认领的提问上倒计时。 */
+  private startQuestionCountdown(eventId: string, remainingMs: number): void {
+    const sessionId = this.pendingEventSessions.get(eventId);
+    if (sessionId === undefined) return;
+    const store = this.deps.sessionLookup(sessionId);
+    const question = store?.pendingQuestion;
+    if (store === undefined || question === undefined || question.eventId !== eventId || question.held === true) return;
+    const delay = Number.isFinite(remainingMs) ? Math.max(0, Math.floor(remainingMs)) : 0;
+    store.setQuestion({ ...question, deadline: Date.now() + delay });
+    this.clearQuestionTimer(eventId);
+    this.questionTimers.set(eventId, setTimeout(() => {
+      this.questionTimers.delete(eventId);
+      void this.expireQuestion(eventId);
+    }, delay));
+  }
+
+  /**
+   * 倒计时走完、用户没碰过：以 `ASK_TIMED_OUT` 回执 waterfall，主机把它映射成 pending 结果，
+   * agent 继续干活；这组问题随后作为 continued 问题回来。弹层被本地收起（或离开了会话页）
+   * 也照样超时，否则 agent 会一直被这份认领挡着。
+   */
+  private async expireQuestion(eventId: string): Promise<void> {
+    const sessionId = this.pendingEventSessions.get(eventId);
+    if (sessionId === undefined) return;
+    const pending = this.deps.sessionLookup(sessionId)?.pendingQuestion;
+    if (pending?.eventId === eventId && pending.held === true) return;
+    await this.settleRemoteEvent(eventId, {
+      kind: 'rejected',
+      name: 'UserQuestionError',
+      message: 'ask_user_question timed out before the user answered',
+      code: 'ASK_TIMED_OUT',
+    });
+    // 应答方收不到自己那份结果的撤回帧。
+    this.retireWaterfall(eventId);
+  }
+
+  private clearQuestionTimer(eventId: string): void {
+    const timer = this.questionTimers.get(eventId);
+    if (timer === undefined) return;
+    clearTimeout(timer);
+    this.questionTimers.delete(eventId);
+  }
+
+  /** 放掉一个提问的认领与倒计时。 */
+  private endQuestionWait(eventId: string): void {
+    this.clearQuestionTimer(eventId);
+    this.mux?.unsubscribe(questionWaitStreamId(eventId));
+  }
+
   private retireWaterfall(eventId: string): void {
+    this.endQuestionWait(eventId);
     const sessionId = this.pendingEventSessions.get(eventId);
     if (sessionId === undefined) return;
     this.pendingEventSessions.delete(eventId);

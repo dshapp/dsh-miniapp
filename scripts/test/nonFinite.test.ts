@@ -27,8 +27,8 @@ test('速率与延迟把 NaN 读作 0', () => {
 
 test('轮次用时扛得住非有限输入', () => {
   setLocale('en');
-  assert.equal(formatDuration(NaN), fmt(Strings.durationSeconds, 0));
-  assert.equal(formatDuration(Infinity), fmt(Strings.durationSeconds, 0));
+  assert.equal(formatDuration(NaN), '0' + Strings.durationSecondUnit);
+  assert.equal(formatDuration(Infinity), '0' + Strings.durationSecondUnit);
 });
 
 test('正常读数不受影响', () => {

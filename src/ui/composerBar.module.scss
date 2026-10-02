@@ -150,6 +150,14 @@
   min-height: 44px;
 }
 
+.hiddenQuestionAction {
+  flex-shrink: 0;
+  padding: 6px 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dsh-color-primary);
+}
+
 .goalGlyph {
   font-size: 16px;
   color: var(--dsh-color-text-sub);

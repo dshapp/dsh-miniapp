@@ -65,6 +65,7 @@ export const LUCIDE_CODEPOINTS = {
   pencil: 0xe1f9,
   sigma: 0xe201,
   'circle-check': 0xe226,
+  reply: 0xe22a,
   pin: 0xe259,
   'git-fork': 0xe28d,
   puzzle: 0xe29c,

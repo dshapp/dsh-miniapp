@@ -4,7 +4,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sessionDisplayTitle, sessionListTitle, sessionName, turnDeliverablesFor } from '../../src/model/format';
+import { sessionDisplayTitle, sessionListTitle, sessionStoredTitle, turnDeliverablesFor } from '../../src/model/format';
 import { Strings, setLocale } from '../../src/i18n/strings';
 import type { SessionSummary } from '../../src/model/types';
 import type { ChatNode } from '../../src/model/chatNode';
@@ -27,13 +27,19 @@ test('空白会话在任何入口都读作「新会话」', () => {
   setLocale('en');
 });
 
-test('非空白会话：实时标题 → 投影标题 → 目录名 → sessionId', () => {
+test('非空白会话：实时标题 → 投影标题 → 「未命名」（0.2.0 起不回落到目录名或 sessionId）', () => {
+  setLocale('en');
   assert.equal(sessionDisplayTitle(summary({ title: 'Projected' }), 'Live'), 'Live');
-  assert.equal(sessionDisplayTitle(summary({ title: 'Projected' }), undefined), 'Projected');
-  assert.equal(sessionDisplayTitle(summary({ cwd: '/work/alpha' }), undefined), 'alpha');
-  assert.equal(sessionDisplayTitle(summary(), undefined), 'session-abc');
-  // sessionName 是不看 blank 的那一档。
-  assert.equal(sessionName(summary({ blank: true, cwd: '/work/alpha' })), 'alpha');
+  assert.equal(sessionDisplayTitle(summary({ title: ' Projected ' }), undefined), 'Projected');
+  assert.equal(sessionDisplayTitle(summary({ title: 'Projected' }), '  '), 'Projected');
+  assert.equal(sessionDisplayTitle(summary({ cwd: '/work/alpha' }), undefined), Strings.sessionUntitled);
+  assert.equal(sessionDisplayTitle(summary(), undefined), 'Untitled');
+});
+
+test('搜索只匹配会话自己的标题（web titleOf）', () => {
+  assert.equal(sessionStoredTitle(summary({ cwd: '/work/alpha' }), undefined), '');
+  assert.equal(sessionStoredTitle(summary({ title: 'Stored' }), '  Live '), 'Live');
+  assert.equal(sessionStoredTitle(summary({ blank: true, title: 'Stored' }), undefined), '');
 });
 
 // —— 本轮产出文件的两道闸 ——————————————————————————————

@@ -82,8 +82,6 @@ test('占位符：%d 与 %02d 都要填', () => {
   assert.equal(fmt(Strings.questionProgress, 7, 12), '7 / 12');
   assert.equal(fmt('%d', 2025), '2025');
   assert.equal(fmt('%02d', 7), '07');
-  // durationMinutes 同时含 %d 与 %02d：安卓 String.format 两者都填。
-  assert.equal(fmt(Strings.durationMinutes, 2, 7), '2m 07s');
   assert.equal(fmt(Strings.statsCounts, 3, 12), '3 turns 12 steps');
 });
 
@@ -97,9 +95,14 @@ test('占位符：%% 是一个百分号', () => {
   assert.equal(fmt(Strings.contextAria, 42), '42% of context used');
 });
 
-test('时长格式化不漏占位符', () => {
+test('时长单元制（web formatRunDuration）：不补零，满 60 分钟出小时', () => {
   setLocale('en');
-  assert.equal(formatDuration(127_000), '2m 07s');
-  assert.equal(formatDuration(65_000), '1m 05s');
-  assert.equal(formatDuration(9_000), '9s');
+  assert.equal(formatDuration(5_900), '5s');
+  assert.equal(formatDuration(125_000), '2m 5s');
+  assert.equal(formatDuration(65_000), '1m 5s');
+  assert.equal(formatDuration(3_603_000), '1h 0m 3s');
+  setLocale('zh');
+  assert.equal(formatDuration(125_000), '2分5秒');
+  assert.equal(formatDuration(3_603_000), '1小时0分3秒');
+  setLocale('en');
 });

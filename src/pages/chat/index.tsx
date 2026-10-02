@@ -89,7 +89,8 @@ export default function ChatPage(): JSX.Element {
   const title = useStore(store.titleStore);
   const cwd = useStore(store.cwdStore);
   const pendingApproval = useStore(store.pendingApprovalStore);
-  const pendingQuestion = useStore(store.pendingQuestionStore);
+  // 弹层呈现的问题（0.2.0）：实时 waterfall 优先，否则是第一个没被收起的 continued 问题。
+  const presentedQuestion = useStore(store.presentedQuestionStore);
   const subagentAddress = useStore(store.subagentAddressStore);
   const parentAvailable = useStore(store.parentAvailableStore);
   // 改动文件的公告是 observation-ignored 的：首次渲染早于公告落库的页脚靠这个修订标量重画。
@@ -703,8 +704,8 @@ export default function ChatPage(): JSX.Element {
         {pendingApproval === undefined ? null : (
           <ApprovalSheet open approval={pendingApproval} onClose={() => store.setApproval(undefined)} />
         )}
-        {pendingQuestion === undefined ? null : (
-          <QuestionSheet open question={pendingQuestion} onClose={() => store.setQuestion(undefined)} />
+        {presentedQuestion === undefined ? null : (
+          <QuestionSheet open question={presentedQuestion} onClose={() => model.dismissQuestion(presentedQuestion)} />
         )}
       </View>
     </PageShell>

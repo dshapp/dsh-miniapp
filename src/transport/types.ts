@@ -25,7 +25,8 @@ export function internalError(message: string): ApiException {
 export type RemoteEventOutcome =
   | { kind: 'result'; value?: JsonValue }
   | { kind: 'next' }
-  | { kind: 'rejected'; name: string; message: string };
+  /** 让请求失败；`code` 随错误一起送到提问方（如限时提问的 `ASK_TIMED_OUT`）。 */
+  | { kind: 'rejected'; name: string; message: string; code?: string };
 
 export type WsConnectionState = 'connected' | 'reconnecting';
 

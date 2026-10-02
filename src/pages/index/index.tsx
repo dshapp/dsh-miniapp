@@ -520,8 +520,8 @@ export default function SessionListPage(): JSX.Element {
           open={renameTarget !== undefined}
           title={Strings.rename}
           label={Strings.rename}
-          // 预填实时标题（对齐 Android titleOf(model, summary)），不是名册里的旧标题。
-          initial={renameTarget === undefined ? '' : model.sessionTitle(renameTarget.sessionId)}
+          // 预填会话自己的标题（对齐 Android sessionStoredTitle），实时标题优先；未命名就留空。
+          initial={renameTarget === undefined ? '' : model.sessionStoredTitle(renameTarget.sessionId)}
           onSubmit={value => {
             const target = renameTarget;
             setRenameTarget(undefined);

@@ -207,7 +207,14 @@ export class TunnelTransport implements RpcTransport {
         ? { kind: 'result', ...(outcome.value === undefined ? {} : { value: outcome.value }) }
         : outcome.kind === 'next'
           ? { kind: 'next' }
-          : { kind: 'rejected', error: { name: outcome.name, message: outcome.message } };
+          : {
+            kind: 'rejected',
+            error: {
+              name: outcome.name,
+              message: outcome.message,
+              ...(outcome.code === undefined ? {} : { code: outcome.code }),
+            },
+          };
     try {
       await this.call('$events/result', { clientId, eventId, outcome: outcomeJson });
       return true;

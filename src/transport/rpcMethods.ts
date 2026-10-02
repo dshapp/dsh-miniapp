@@ -10,6 +10,7 @@ import type {
   PermissionPresetOption, WorkspaceView,
 } from '../model/types';
 import { decodeHistoryEntry, decodeSessionSummary, decodeWorkspaceView } from '../model/frames';
+import { questionAnswerPayload, type QuestionAnswer } from '../model/questionFlow';
 import {
   decodeChangedFileDiff,
   decodeTurnChangesSummary,
@@ -633,6 +634,28 @@ export async function agentPresetSelect(
   agentPreset: string,
 ): Promise<void> {
   await transport.call('agentPresets/select', { agentId: sessionId, agentPreset });
+}
+
+// —— 限时提问（0.2.0）——————————————————————————————————————————
+
+/**
+ * 给一个已继续（continued）的 `ask_user_question` 迟到作答：主机把它作为
+ * `user-question-reply` 消息插进 agent（对齐 Android `answerUserQuestion`）。
+ *
+ * @returns 问题已不再是 continued 时为 false；已有一条回答在排队时主机报 `REPLY_QUEUED`。
+ */
+export async function answerUserQuestion(
+  transport: RpcTransport,
+  sessionId: SessionId,
+  callId: string,
+  answers: QuestionAnswer[],
+): Promise<boolean> {
+  const value = await transport.call('userQuestions/answer', {
+    agentId: sessionId,
+    callId,
+    answer: questionAnswerPayload(answers) as unknown as JsonValue,
+  });
+  return bool(value) === true;
 }
 
 // —— 目标 ——————————————————————————————————————————————————————

@@ -56,8 +56,9 @@ import {
   workspaceUnarchiveSession,
   type PromptContentPart,
   type QueueAction,
+  answerUserQuestion,
 } from '../transport/rpcMethods';
-import { goalPhaseAction, planModeLine, sessionDisplayTitle } from '../model/format';
+import { goalPhaseAction, planModeLine, sessionDisplayTitle, sessionStoredTitle } from '../model/format';
 import { reusableBlankSession } from '../model/blankSessionReuse';
 import { copyWorkspaceFileChunked } from '../model/chunkedCopy';
 import { fileExtension } from '../model/imageFileType';
@@ -74,7 +75,8 @@ import type {
   WorkspaceId,
 } from '../model/types';
 import type { ChangedFileDiff, TurnChangesAddress, TurnChangesSummary } from '../model/turnChanges';
-import type { ApprovalRequested, ApprovalOutcome, QuestionRequested, QuestionAnswer } from '../model/questionFlow';
+import { questionAnswerPayload, type ApprovalRequested, type ApprovalOutcome, type QuestionRequested, type QuestionAnswer } from '../model/questionFlow';
+import type { JsonValue } from '../model/json';
 import type { PhoneAttachment } from './composer';
 import { Strings } from '../i18n/strings';
 
@@ -1183,22 +1185,52 @@ export class AppModel {
   }
 
   async respondQuestion(question: QuestionRequested, answers: QuestionAnswer[]): Promise<void> {
-    const value = {
-      answers: answers.map(answer => {
-        const entry: Record<string, unknown> = { id: answer.id, selected: answer.selected };
-        if (answer.custom !== undefined) entry.custom = answer.custom;
-        return entry;
-      }),
-    };
-    await this.settle(question.eventId, { kind: 'result', value: value as never });
+    const callId = question.callId;
+    if (question.continued === true && callId !== undefined) {
+      // continued 问题已经没有 waterfall 可回执：迟到回答走 userQuestions/answer（0.2.0）。
+      try {
+        if (await answerUserQuestion(this.requireTransport(), question.sessionId, callId, answers)) {
+          this.sessions.get(question.sessionId)?.markQuestionReplied(callId);
+        }
+      } catch (error) {
+        this.lastErrorStore.set(describe(error));
+      }
+      return;
+    }
+    await this.settle(question.eventId, { kind: 'result', value: questionAnswerPayload(answers) as unknown as JsonValue });
     this.sessions.get(question.sessionId)?.setQuestion(undefined);
+    // 应答方收不到自己那份撤回帧：就地放掉认领与倒计时。
+    this.coordinator?.retireLocally(question.eventId);
     sessionListStore.clearAwaitingUser(question.sessionId);
   }
 
   async cancelQuestion(question: QuestionRequested): Promise<void> {
+    const callId = question.callId;
+    if (question.continued === true && callId !== undefined) {
+      // continued 问题没有请求可拒：关掉只是收起，输入框上方的入口能重新打开。
+      this.sessions.get(question.sessionId)?.hideQuestion(callId);
+      return;
+    }
     await this.settle(question.eventId, { kind: 'next' });
     this.sessions.get(question.sessionId)?.setQuestion(undefined);
+    this.coordinator?.retireLocally(question.eventId);
     sessionListStore.clearAwaitingUser(question.sessionId);
+  }
+
+  /** 用户开始作答或点了「慢慢回答」：限时提问停止倒计时，一直等到本端提交或取消。 */
+  holdQuestion(question: QuestionRequested): void {
+    this.coordinator?.holdQuestion(question);
+  }
+
+  /**
+   * 不作答、只把弹层划走：实时问题在本地撤下（倒计时照走，到点仍会放行 agent），
+   * continued 问题收起；两者都不会再自己弹出来，留给输入框上方的入口（对齐 Android dismissQuestion）。
+   */
+  dismissQuestion(question: QuestionRequested): void {
+    const store = this.sessions.get(question.sessionId);
+    if (store === undefined) return;
+    if (question.callId !== undefined) store.hideQuestion(question.callId);
+    if (question.continued !== true && store.pendingQuestion?.eventId === question.eventId) store.setQuestion(undefined);
   }
 
   private async settle(eventId: string | undefined, outcome: RemoteEventOutcome): Promise<void> {
@@ -1351,10 +1383,18 @@ export class AppModel {
   sessionTitle(sessionId: SessionId): string {
     const store = this.sessions.get(sessionId);
     const summary = sessionListStore.sessions.find(item => item.sessionId === sessionId);
-    // 名册里还没有这条会话（通知/深链直接进来的）：退回实时标题，再没有就是「未命名会话」——
-    // 把一长串 sessionId 摆到顶栏上等于什么也没说（对齐 Android title 的 untitledSession 兜底）。
-    if (summary === undefined) return store?.title ?? Strings.untitledSession;
+    // 名册里还没有这条会话（通知/深链直接进来的）：退回实时标题，再没有就是「未命名」——
+    // 把一长串 sessionId 摆到顶栏上等于什么也没说（对齐 Android title 的 sessionUntitled 兜底）。
+    if (summary === undefined) return store?.title || Strings.sessionUntitled;
     return sessionDisplayTitle(summary, store?.title);
+  }
+
+  /** 会话自己的标题（重命名预填用）：未命名为空串，不拿「未命名」或目录名去预填。 */
+  sessionStoredTitle(sessionId: SessionId): string {
+    const store = this.sessions.get(sessionId);
+    const summary = sessionListStore.sessions.find(item => item.sessionId === sessionId);
+    if (summary === undefined) return store?.title.trim() ?? '';
+    return sessionStoredTitle(summary, store?.title);
   }
 }
 

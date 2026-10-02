@@ -19,6 +19,8 @@ export interface QueuedInboxItem {
   placement: string;
   rpcId?: string;
   content: JsonElement[];
+  /** 这是一条排队中的迟到提问回答时（0.2.0 `user-question-reply`），它回答的那次调用。 */
+  questionCallId?: string;
 }
 
 export function queuedItemText(item: QueuedInboxItem): string {
@@ -88,12 +90,19 @@ export function decodeInbox(value: JsonElement | undefined): SessionInboxValue |
  * rowsFromInbox 同一口径。
  */
 export function rowsFromInbox(value: SessionInboxValue): QueuedInboxItem[] {
-  const row = (message: QueuedInboxMessage, placement: string): QueuedInboxItem => ({
-    id: message.id,
-    placement,
-    rpcId: inboxMessageRpcId(message),
-    content: message.content,
-  });
+  const row = (message: QueuedInboxMessage, placement: string): QueuedInboxItem => {
+    const item: QueuedInboxItem = {
+      id: message.id,
+      placement,
+      rpcId: inboxMessageRpcId(message),
+      content: message.content,
+    };
+    const questionCallId = str(jget(message.source, 'kind')) === 'user-question-reply'
+      ? str(jget(message.source, 'callId'))
+      : undefined;
+    if (questionCallId !== undefined) item.questionCallId = questionCallId;
+    return item;
+  };
   return [
     ...value.nextTurn.map(message => row(message, 'queued')),
     ...value.nextStep.map(message => row(message, str(jget(message.source, 'kind')) === 'user' ? 'steering' : 'context')),

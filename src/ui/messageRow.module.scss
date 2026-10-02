@@ -216,6 +216,27 @@
   padding: 4px 0 8px 24px;
 }
 
+/* 迟到的提问回答：问题与答案缩进到图标槽之后（对齐 Android Dimens.iconSlot + 6dp）。 */
+.questionReplyPair {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0 2px 20px;
+}
+
+.questionReplyQuestion {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--dsh-color-text);
+  word-break: break-word;
+}
+
+.questionReplyAnswer {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--dsh-color-text-sub);
+  word-break: break-word;
+}
+
 .detailText {
   font-size: 14px;
   line-height: 22px;

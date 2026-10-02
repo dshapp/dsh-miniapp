@@ -1,6 +1,6 @@
 import {
   sessionMatchesSearch,
-  sessionSearchName,
+  sessionStoredTitle,
   sessionWorkspaceName,
 } from './format';
 import { isSubagentOrigin } from './types';
@@ -52,8 +52,8 @@ export function archivedSessionRows(
  * 归档页的本地搜索过滤：按标题或工作区名做大小写不敏感的子串匹配。
  *
  * 纯本地、不请求 `session/search`——主机的内容搜索是可选的，而归档页要的是「按名字找回
- * 那条会话」。标题取 sessionSearchName（不拿 sessionId 兜底，否则「session」这种词会命中
- * 几乎每一条）；工作区名取 sessionWorkspaceName，与列表行的灰色前缀同一口径。
+ * 那条会话」。标题取 sessionStoredTitle（会话自己的标题，未命名为空，不拿目录名或 sessionId
+ * 兜底）；工作区名取 sessionWorkspaceName，与列表行的灰色前缀同一口径。
  */
 export function filterArchivedSessions(
   rows: SessionSummary[],
@@ -64,7 +64,7 @@ export function filterArchivedSessions(
   if (needle.length === 0) return rows;
   return rows.filter(summary =>
     sessionMatchesSearch(
-      sessionSearchName(summary, undefined),
+      sessionStoredTitle(summary, undefined),
       sessionWorkspaceName(workspaceTitleBySession.get(summary.sessionId), summary.cwd),
       needle,
     ),

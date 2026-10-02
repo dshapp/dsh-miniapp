@@ -36,6 +36,8 @@ const ICONS = [
   'code', 'puzzle', 'search', 'search-x', 'send', 'sigma', 'square', 'square-check',
   'qr-code', 'terminal', 'text-quote', 'timer', 'triangle-alert', 'users',
   'wrench', 'x', 'zap',
+  // dsh 0.2.0：迟到的提问回答（question-reply 节点）。
+  'reply',
 ];
 
 function download(path, file) {

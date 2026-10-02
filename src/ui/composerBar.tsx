@@ -20,6 +20,7 @@ import type { CommandDescriptor, SkillEntry } from '../model/types';
 import { jget, str, type JsonElement } from '../model/json';
 import { queuedItemText } from '../model/frames';
 import type { QueuedInboxItem } from '../model/frames';
+import type { QuestionRequested } from '../model/questionFlow';
 import type { GoalProjection, TodoItem } from '../state/sessionStore';
 import { useSafeBottom } from '../framework/hook';
 import { toast } from '../framework/req';
@@ -286,6 +287,20 @@ function todoStatusClass(status: string): string {
   return styles.todoPending;
 }
 
+/**
+ * 被收起的 continued 问题（0.2.0）：agent 已经继续干活，这组问题仍可回答，点「回答」重新打开弹层
+ *（web 从工具行重开；对齐 Android HiddenQuestionStrip）。
+ */
+function HiddenQuestionStrip(props: { question: QuestionRequested; onReopen: () => void }): JSX.Element {
+  return (
+    <View className={styles.goalBar}>
+      <Icon name='circle-help' className={styles.goalGlyph} />
+      <Text className={styles.goalText}>{props.question.questions[0]?.question ?? Strings.questionWaitContinued}</Text>
+      <Text className={styles.hiddenQuestionAction} onClick={props.onReopen}>{Strings.questionReopen}</Text>
+    </View>
+  );
+}
+
 /** 目标条：有目标才出现，可暂停/恢复、编辑、清除（对齐 Android GoalBar）。 */
 function GoalBar(props: {
   goal: GoalProjection;
@@ -477,6 +492,10 @@ export function ComposerBar(props: ComposerBarProps): JSX.Element {
   const queue = useStore(store.queueStore);
   const todos = useStore(store.todosStore);
   const goal = useStore(store.goalStore);
+  const presentedQuestion = useStore(store.presentedQuestionStore);
+  const continuedQuestions = useStore(store.continuedQuestionsStore);
+  // 弹层没在呈现问题、但还有可答的 continued 问题（都被收起了）：输入框上方给一条入口。
+  const hiddenQuestion = presentedQuestion === undefined ? continuedQuestions[0] : undefined;
 
   const [draft, setDraft] = React.useState<string>(() => readDraft(sessionId));
   const [cursor, setCursor] = React.useState<number>(() => readDraft(sessionId).length);
@@ -823,6 +842,12 @@ export function ComposerBar(props: ComposerBarProps): JSX.Element {
           onTogglePause={() => { void model.toggleGoalPause(sessionId); }}
           onEdit={objective => { void model.editGoal(objective, sessionId); }}
           onClear={() => { void model.clearGoal(sessionId); }}
+        />
+      )}
+      {hiddenQuestion === undefined ? null : (
+        <HiddenQuestionStrip
+          question={hiddenQuestion}
+          onReopen={() => { if (hiddenQuestion.callId !== undefined) store.reopenQuestion(hiddenQuestion.callId); }}
         />
       )}
       {queuedItems.length > 0 ? (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, Text, Textarea, View } from '@tarojs/components';
+import { Input, ScrollView, Text, Textarea, View } from '@tarojs/components';
 import { Strings, fmt } from '../i18n/strings';
 import { getAppModel } from '../state/appModel';
 import { useStore } from '../state/store';
@@ -20,6 +20,7 @@ import type { PresentedFile } from '../model/format';
 import { parseArgsMap } from '../model/toolRow';
 import { jobIsLive } from '../model/types';
 import { liveJobs, settledJobs } from '../model/jobs';
+import { MODEL_SEARCH_THRESHOLD, modelChoiceCount, visibleModelGroups } from '../model/modelSearch';
 import { jobStatusLabel, openJobDetail } from './jobDetail';
 import type { JobView, ModelProviderGroup, SubagentListEntry } from '../model/types';
 import {
@@ -37,6 +38,7 @@ import {
   questionFlowPrevious,
   questionFlowSetCustom,
   questionFlowSkip,
+  questionIdentity,
   routePlanReview,
 } from '../model/questionFlow';
 import type {
@@ -618,9 +620,19 @@ export function ModelPickerSheet(props: { open: boolean; sessionId: string; onCl
   const store = React.useMemo(() => model.ensureSession(props.sessionId), [model, props.sessionId]);
   const directory = useStore(store.modelDirectoryStore);
   const [tab, setTab] = React.useState(0);
+  // 模型搜索（web `ModelSelect`，0.2.0 #4787）：目录超过 4 个模型才出搜索框；
+  // 供应商按 account → official → 其余排，组内按 rankByName 排名，空组隐藏。
+  const [query, setQuery] = React.useState('');
+  const showSearch = modelChoiceCount(directory.groups) > MODEL_SEARCH_THRESHOLD;
+  const visibleGroups = React.useMemo(
+    () => visibleModelGroups(directory.groups, showSearch ? query : ''),
+    [directory.groups, query, showSearch],
+  );
 
   React.useEffect(() => {
     if (props.open) void model.loadModels(props.sessionId);
+    // 每次打开都从空查询开始（对齐 Mac 打开即清空 query）。
+    if (props.open) setQuery('');
   }, [model, props.open, props.sessionId]);
 
   const currentGroup = directory.groups.find(group => group.id === directory.current?.provider);
@@ -696,9 +708,31 @@ export function ModelPickerSheet(props: { open: boolean; sessionId: string; onCl
         </View>
       ) : null}
 
+      {(tab === 0 || !hasEfforts) && showSearch ? (
+        <View className={styles.modelSearchRow}>
+          <Icon name='search' className={styles.modelSearchGlyph} />
+          <Input
+            className={styles.modelSearchInput}
+            value={query}
+            confirmType='search'
+            placeholder={Strings.modelSearchPlaceholder}
+            placeholderClass={styles.modelSearchPlaceholder}
+            onInput={event => setQuery(event.detail.value)}
+          />
+          {query.length > 0 ? (
+            <View className={styles.modelSearchClear} aria-label={Strings.modelSearchClear} onClick={() => setQuery('')}>
+              <Icon name='x' />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
       {tab === 0 || !hasEfforts ? (
         <View className={modelListClass(selecting)}>
-          {directory.groups.map(group => (
+          {visibleGroups.length === 0 && query.trim().length > 0 ? (
+            <Text className={styles.modelSearchEmpty}>{Strings.modelSearchEmpty}</Text>
+          ) : null}
+          {visibleGroups.map(group => (
             <View key={group.id}>
               <Text className={styles.modelGroupTitle}>{group.name}</Text>
               {group.models.map(entry => {
@@ -1008,17 +1042,58 @@ function PlanReviewSheet(props: { question: QuestionRequested; onClose: () => vo
   );
 }
 
+/** 限时等待的状态行（0.2.0 web `wait.*`）：倒计时 + 慢慢回答、已按住、已继续。 */
+function QuestionWaitStatus(props: { question: QuestionRequested; onTakeTime: () => void }): JSX.Element | null {
+  const deadline = props.question.deadline;
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    if (deadline === undefined) return undefined;
+    setNow(Date.now());
+    const timer = setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (current >= deadline) clearInterval(timer);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [deadline]);
+  if (props.question.continued === true) {
+    return <Text className={styles.questionWait}>{Strings.questionWaitContinued}</Text>;
+  }
+  if (deadline !== undefined) {
+    const seconds = Math.max(0, Math.ceil((deadline - now) / 1000));
+    return (
+      <View className={styles.questionWaitRow}>
+        <Text className={styles.questionWait}>{fmt(Strings.questionWaitCountdown, seconds)}</Text>
+        <Text className={styles.questionWaitAction} onClick={props.onTakeTime}>{Strings.questionWaitTakeTime}</Text>
+      </View>
+    );
+  }
+  if (props.question.held === true) {
+    return <Text className={styles.questionWait}>{Strings.questionWaitHeld}</Text>;
+  }
+  return null;
+}
+
 /** 提问：逐题作答，最后一题才提交整组答案；计划评审走单独的分支。 */
 export function QuestionSheet(props: { open: boolean; question: QuestionRequested; onClose: () => void }): JSX.Element {
   const model = getAppModel();
   const review = routePlanReview(props.question.questions);
-  const [flow, setFlow] = React.useState<QuestionFlowState>(() => createQuestionFlow(props.question.questions));
+  const [flow, setFlowState] = React.useState<QuestionFlowState>(() => createQuestionFlow(props.question.questions));
   const [busy, setBusy] = React.useState(false);
-  // 换一组问题（或重新打开）时重置流程，避免把上一组答案带进来。
+  // 换一组问题（或重新打开）时重置流程，避免把上一组答案带进来。按问题身份记草稿：
+  // 倒计时开始、按住等待都会换一份 question 值，但不能把正在填的草稿重置掉（对齐 Android identity）。
+  const identity = questionIdentity(props.question);
   React.useEffect(() => {
-    setFlow(createQuestionFlow(props.question.questions));
+    setFlowState(createQuestionFlow(props.question.questions));
     setBusy(false);
-  }, [props.question]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identity]);
+
+  // 任何改动都让限时等待一直开着，直到这张卡结掉（web `engage`）。
+  const setFlow = (update: QuestionFlowState | ((current: QuestionFlowState) => QuestionFlowState)): void => {
+    setFlowState(update);
+    model.holdQuestion(props.question);
+  };
 
   const submit = (state: QuestionFlowState): void => {
     if (busy) return;
@@ -1077,20 +1152,29 @@ export function QuestionSheet(props: { open: boolean; question: QuestionRequeste
             )}
             <Text className={styles.questionText}>{item.question}</Text>
           </View>
-          <Icon name='x' className={styles.sheetClose} ariaLabel={Strings.questionCancel} onClick={cancelAll} />
+          {/* continued 问题没有请求可拒，关掉只是收起（cancelQuestion 里分流）。 */}
+          <Icon
+            name='x'
+            className={styles.sheetClose}
+            ariaLabel={props.question.continued === true ? Strings.questionHide : Strings.questionCancel}
+            onClick={cancelAll}
+          />
         </View>
       }
       footer={
         <View>
           {validation === 'unanswered' ? <Text className={styles.errorText}>{Strings.questionErrorUnanswered}</Text> : null}
           {validation === 'incomplete' ? <Text className={styles.errorText}>{Strings.questionErrorIncomplete}</Text> : null}
+          {validation === undefined ? (
+            <QuestionWaitStatus question={props.question} onTakeTime={() => model.holdQuestion(props.question)} />
+          ) : null}
           <View className={styles.questionFooter}>
             {flow.questions.length > 1 ? (
               <Icon
                 name='chevron-left'
                 ariaLabel={Strings.questionPrev}
                 className={styles.stepButton + ' ' + (questionFlowIsFirst(flow) ? styles.stepButtonOff : '')}
-                onClick={() => { if (!busy && !questionFlowIsFirst(flow)) setFlow(questionFlowPrevious(flow)); }}
+                onClick={() => { if (!busy && !questionFlowIsFirst(flow)) setFlowState(questionFlowPrevious(flow)); }}
               />
             ) : null}
             {flow.questions.length > 1 ? (
@@ -1103,7 +1187,7 @@ export function QuestionSheet(props: { open: boolean; question: QuestionRequeste
                 name='chevron-right'
                 ariaLabel={Strings.questionNext}
                 className={styles.stepButton + ' ' + (questionFlowIsLast(flow) ? styles.stepButtonOff : '')}
-                onClick={() => { if (!busy && !questionFlowIsLast(flow)) setFlow(questionFlowNext(flow)); }}
+                onClick={() => { if (!busy && !questionFlowIsLast(flow)) setFlowState(questionFlowNext(flow)); }}
               />
             ) : null}
             {/* 进度与「跳过/提交」之间留弹性空隙（对齐 Android 的 Spacer(weight(1f))）。 */}

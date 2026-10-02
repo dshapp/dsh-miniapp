@@ -25,11 +25,16 @@ function nonNegative(value: number): number {
   return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
+/**
+ * 整秒向下取（web `formatRunDuration`）：每个数字后面跟本地化单位、不补零；满 60 秒出分钟，
+ * 满 60 分钟出小时——「5s / 2m 5s / 1h 0m 3s」「5秒 / 2分5秒 / 1小时0分3秒」。
+ */
 export function formatDuration(ms: number): string {
   const total = Math.floor(nonNegative(ms) / 1000);
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  return minutes > 0 ? fmt(Strings.durationMinutes, minutes, seconds) : fmt(Strings.durationSeconds, seconds);
+  let text = '';
+  if (total >= 3600) text += String(Math.floor(total / 3600)) + Strings.durationHourUnit;
+  if (total >= 60) text += String(Math.floor(total / 60) % 60) + Strings.durationMinuteUnit;
+  return text + String(total % 60) + Strings.durationSecondUnit;
 }
 
 /** 上下文面板里的用时读数：不足一分钟保留一位小数，超过按分秒拆开。 */
@@ -155,32 +160,17 @@ export function pathBasename(path: string): string {
 }
 
 /**
- * 会话的显示名：投影标题 → cwd 目录名 → sessionId 兜底。
- *
- * 不看 blank：这一档是「一条已经存在的会话叫什么」，空白会话的占位名由
- * [sessionDisplayTitle]/[sessionListTitle] 那一层给（与 Android 的两个同名重载一一对应）。
- */
-export function sessionName(summary: SessionSummary): string {
-  const projected = str(jget(summary.projections?.values as JsonElement, 'title'));
-  if (projected !== undefined && projected.length > 0) return projected;
-  if (summary.cwd !== undefined && summary.cwd.length > 0) {
-    const base = pathBasename(summary.cwd);
-    if (base.length > 0) return base;
-  }
-  return summary.sessionId;
-}
-
-/**
- * 带实时标题的显示名：空白会话一律是占位名。
+ * 会话的显示标题（web `displayTitle`）：空白会话是「新会话」占位，然后是打开中会话的实时标题、
+ * 投影标题；都没有就显示「未命名」——0.2.0 起 web 不再拿目录名或 sessionId 兜底
+ *（对齐 Android Format.kt `sessionDisplayTitle`）。
  *
  * 空白会话还没有任何内容，主机也没给过标题；不先判 blank 的话，新建出来的会话在
- * 会话页顶栏上读作 cwd 的目录名（或者干脆是一长串 sessionId），
- * 而列表里同一条会话写的是「新会话」——两处对不上。
+ * 会话页顶栏上读作「未命名」，而列表里同一条会话写的是「新会话」——两处对不上。
  */
 export function sessionDisplayTitle(summary: SessionSummary, liveTitle?: string): string {
   if (summary.blank) return Strings.newSessionPlaceholder;
-  if (liveTitle !== undefined && liveTitle.length > 0) return liveTitle;
-  return sessionName(summary);
+  const stored = sessionStoredTitle(summary, liveTitle);
+  return stored.length > 0 ? stored : Strings.sessionUntitled;
 }
 
 /** 列表标题：空白会话显示占位名，实时标题优先。 */
@@ -188,20 +178,23 @@ export function sessionListTitle(summary: SessionSummary, liveTitle: string | un
   return sessionDisplayTitle(summary, liveTitle);
 }
 
+/**
+ * 会话自己的标题（web `titleOf`）：实时标题 → 投影标题，去掉首尾空白；没有就是空串。
+ *
+ * 搜索与重命名预填只用这一份：未命名会话不能再借一个已经不显示的目录名命中搜索。
+ */
+export function sessionStoredTitle(summary: SessionSummary, liveTitle: string | undefined): string {
+  if (summary.blank) return '';
+  const live = liveTitle?.trim();
+  if (live !== undefined && live.length > 0) return live;
+  return str(jget(summary.projections?.values as JsonElement, 'title'))?.trim() ?? '';
+}
+
 export function sessionWorkspaceName(workspaceTitle: string | undefined, cwd: string | undefined): string | undefined {
   if (workspaceTitle !== undefined && workspaceTitle.length > 0) return workspaceTitle;
   if (cwd === undefined || cwd.length === 0) return undefined;
   const base = pathBasename(cwd);
   return base.length > 0 ? base : undefined;
-}
-
-/** 本地搜索用的会话名；刻意不退化成 sessionId。 */
-export function sessionSearchName(summary: SessionSummary, liveTitle: string | undefined): string {
-  if (liveTitle !== undefined && liveTitle.length > 0) return liveTitle;
-  const projected = str(jget(summary.projections?.values as JsonElement, 'title'));
-  if (projected !== undefined && projected.length > 0) return projected;
-  if (summary.cwd !== undefined && summary.cwd.length > 0) return pathBasename(summary.cwd);
-  return '';
 }
 
 export function sessionMatchesSearch(title: string, workspaceName: string | undefined, query: string): boolean {
@@ -233,7 +226,7 @@ export interface SessionSearchRows {
 
 /**
  * 会话搜索结果，逐条对齐 web deriveSearchResults：
- * 本地标题/工作区名子串命中按 updatedAt 新到旧领先，主机内容命中按后端顺序去重接在后面，
+ * 本地标题（只认会话自己的标题 [sessionStoredTitle]，0.2.0 起不回落到目录名/sessionId）/工作区名子串命中按 updatedAt 新到旧领先，主机内容命中按后端顺序去重接在后面，
  * 截到 limit 条；hasMore = 后端 hasMore || 合并总数超过 limit。
  * `listed` 是主列表可见的名册（已滤掉空白、subagent 与已归档），主机命中不在其中的直接丢弃。
  */
@@ -249,7 +242,7 @@ export function deriveSessionSearchResults(
   if (needle.length === 0) return { sessions: [], hasMore: false };
   const local = listed
     .filter(summary =>
-      sessionDisplayTitle(summary, liveTitle(summary.sessionId)).toLowerCase().includes(needle)
+      sessionStoredTitle(summary, liveTitle(summary.sessionId)).toLowerCase().includes(needle)
       || (sessionWorkspaceName(workspaceTitles.get(summary.sessionId), summary.cwd) ?? '').toLowerCase().includes(needle),
     )
     .sort((a, b) => (a.updatedAt !== b.updatedAt ? b.updatedAt - a.updatedAt : a.sessionId < b.sessionId ? -1 : 1));

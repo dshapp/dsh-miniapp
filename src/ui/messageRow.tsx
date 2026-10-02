@@ -3,7 +3,8 @@ import Taro from '@tarojs/taro';
 import { Text, View } from '@tarojs/components';
 import { color_bad, color_good, color_primary, color_text_faint, color_text_sub, color_warning, DIMENS } from '../const';
 import { Strings, fmt } from '../i18n/strings';
-import { turnTriggerPresentation } from '../model/turnTrigger';
+import { questionReplyPairs, turnTriggerPresentation } from '../model/turnTrigger';
+import type { QuestionReplyPair } from '../model/questionFlow';
 import { Store, useStore } from '../state/store';
 import { openCardDetail } from './cardDetail';
 
@@ -316,6 +317,8 @@ function DetailCard(props: {
  */
 function TurnTriggerRow(props: { data: TurnTriggerNode; findQuery: string; findActive: boolean }): JSX.Element {
   const { data, findQuery, findActive } = props;
+  const reply = React.useMemo(() => questionReplyPairs(data.content, data.source), [data]);
+  if (reply !== undefined) return <QuestionReplyRow pairs={reply} findQuery={findQuery} findActive={findActive} />;
   const presentation = turnTriggerPresentation(data.source);
   const title = Strings[presentation.title];
   const text = plainText(data.content);
@@ -328,6 +331,31 @@ function TurnTriggerRow(props: { data: TurnTriggerNode; findQuery: string; findA
         {text}
       </Text>
     </DetailCard>
+  );
+}
+
+/**
+ * 迟到的提问回答是用户自己的短答（0.2.0 web `QuestionReplyView`）：问题和答案直接铺开，
+ * 没有可展开的详情（对齐 Android QuestionReplyRow）。
+ */
+function QuestionReplyRow(props: { pairs: QuestionReplyPair[]; findQuery: string; findActive: boolean }): JSX.Element {
+  return (
+    <View className={styles.card}>
+      <CardHeader
+        name='reply'
+        summary={Strings.questionReplyLabel}
+        findQuery={props.findQuery}
+        findActive={props.findActive}
+      />
+      {props.pairs.map((pair, index) => (
+        <View key={index} className={styles.questionReplyPair}>
+          <Text className={styles.questionReplyQuestion} selectable userSelect>{pair.question}</Text>
+          <Text className={styles.questionReplyAnswer} selectable userSelect>
+            {Strings.questionReplyAnswer + (pair.answers.length > 0 ? pair.answers.join(', ') : Strings.questionReplySkipped)}
+          </Text>
+        </View>
+      ))}
+    </View>
   );
 }
 
