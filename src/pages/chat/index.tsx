@@ -25,7 +25,7 @@ import { getSystemInfo } from '../../framework/systemInfo';
 import { ComposerBar } from '../../ui/composerBar';
 import { EmptyState } from '../../ui/emptyState';
 import { Icon } from '../../ui/icon';
-import { MessageRow } from '../../ui/messageRow';
+import { MessageRow, RunningStatusRow } from '../../ui/messageRow';
 import { NavBar, NavIconButton, NavLabel, NavSearchInput, NavTitle, useNavMetrics } from '../../ui/navBar';
 import {
   ApprovalSheet,
@@ -80,6 +80,8 @@ export default function ChatPage(): JSX.Element {
   const store = React.useMemo<SessionStore>(() => model.ensureSession(sessionId), [model, sessionId]);
 
   const nodes = useStore(store.nodesStore);
+  // 运行态单独订阅：底部状态行随它出现/消失。
+  useStore(store.runningStore);
   const turnRail = useStore(store.turnRailStore);
   const hasMore = useStore(store.hasMoreStore);
   const loadingHistory = useStore(store.loadingHistoryStore);
@@ -488,6 +490,16 @@ export default function ChatPage(): JSX.Element {
       </View>,
     );
   });
+
+  // 运行中底部状态行跟在转写最后（查找态不画）。
+  const runningStatus = finding ? undefined : store.runningStatus;
+  if (runningStatus !== undefined) {
+    rows.push(
+      <View key='running-status' className={styles.row}>
+        <RunningStatusRow toolName={runningStatus.toolName} startedAt={runningStatus.startedAt} />
+      </View>,
+    );
+  }
 
   const emptyByFind = finding && findQuery.trim().length > 0 && visibleNodes.length === 0 && pendingSteering.length === 0;
   const transcriptEmpty = nodes.length === 0 && pendingSteering.length === 0;

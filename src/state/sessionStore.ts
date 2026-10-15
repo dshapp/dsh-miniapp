@@ -712,6 +712,30 @@ export class SessionStore {
     this.lastSeqStore.set(value);
   }
 
+  /**
+   * 运行中底部状态行（对齐 Mac `RunningStatusRow` / 扩展 e88b2a0）：最新一轮里还没出结果的那个工具调用，
+   * 以及本轮 turn/start 的时刻；模型在思考时 toolName 为空，没载到 turn/start 时不给用时。
+   */
+  get runningStatus(): { toolName?: string; startedAt?: number } | undefined {
+    if (!this.running) return undefined;
+    let newestTurn: number | undefined;
+    let toolName: string | undefined;
+    for (let i = this.nodes.length - 1; i >= 0; i -= 1) {
+      const node = this.nodes[i];
+      const turn = chatNodeTurnNumber(node);
+      if (turn !== undefined) {
+        if (newestTurn === undefined) newestTurn = turn;
+        else if (turn !== newestTurn) break;
+      }
+      if (node.kind === 'tool' && node.data.result === undefined) {
+        toolName = node.data.name;
+        break;
+      }
+    }
+    const startedAt = this.currentTurn === 0 ? undefined : this.turnStartTimes.get(this.currentTurn);
+    return { toolName, startedAt };
+  }
+
   get running(): boolean {
     return this.runningStore.get();
   }
@@ -993,6 +1017,8 @@ export class SessionStore {
   private readonly activeSteps = new Set<number>();
   private readonly stepStartTimes = new Map<string, number>();
   private readonly turnStartSeqs = new Map<number, number>();
+  /** 每一轮 turn/start 的时刻：运行中底部状态的用时从这里起算。 */
+  private readonly turnStartTimes = new Map<number, number>();
   /** 每一轮在窗口里最早那条事件的时刻：turn/start 被裁掉时当用时的计时起点。 */
   private readonly turnFirstEventTime = new Map<number, number>();
   /** 当前轮里最近开始的那一步。 */
@@ -1414,6 +1440,7 @@ export class SessionStore {
     this.claimedSteeringIds.clear();
     this.stepStartTimes.clear();
     this.turnStartSeqs.clear();
+    this.turnStartTimes.clear();
     this.turnFirstEventTime.clear();
     this.currentStep = 0;
     this.inboxClaims.clear();
@@ -2028,6 +2055,7 @@ export class SessionStore {
     this.currentTurn = turn;
     this.currentStep = 0;
     this.turnStartSeqs.set(turn, event.seq);
+    this.turnStartTimes.set(turn, event.time);
     this.running = true;
     this.lastTurnErrored = false;
     const errKey = 'turn-error:' + turn;

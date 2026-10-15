@@ -89,3 +89,13 @@ test('工具调用按派发时的工作目录解析路径，之后换目录不�
   const rows = store.nodes.flatMap(node => (node.kind === 'tool' ? [toolRowModel(node.data, store.workingDirectoryStore.get()).summary] : []));
   assert.deepEqual(rows, ['a.ts', 'b.ts']);
 });
+
+test('运行中底部状态：当前未出结果的工具与本轮 turn/start 时刻，结束后消失', () => {
+  const store = new SessionStore('s1');
+  store.apply({ type: 'turn/start', seq: 1, time: 5000, data: { turn: 1 } } as never, undefined);
+  assert.deepEqual(store.runningStatus, { toolName: undefined, startedAt: 5000 });
+  store.apply(ev('tool/call', 2, { callId: 'c1', name: 'bash', arguments: '{}', turn: 1, step: 1 }), undefined);
+  assert.equal(store.runningStatus?.toolName, 'bash');
+  store.apply({ type: 'turn/end', seq: 3, time: 9000, data: { turn: 1, reason: { kind: 'completed' } } } as never, undefined);
+  assert.equal(store.runningStatus, undefined);
+});

@@ -421,6 +421,21 @@ const TABLE = {
   turnStopped: ['Stopped', '已停止'],
   turnFailed: ['Failed', '处理失败'],
   turnProcessTook: ['Completed in %s', '已完成，用时 %s'],
+  // 运行中底部状态（web `message.stepProcess.*`，文案以 Mac L10n 为准）。
+  activityThinking: ['Analyzing the request', '正在分析请求'],
+  activityRead: ['Reading files', '正在读取文件'],
+  activityReadImage: ['Reading images', '正在读取图片'],
+  activityWrite: ['Writing files', '正在写入文件'],
+  activitySearch: ['Searching code', '正在搜索代码'],
+  activityEdit: ['Editing files', '正在编辑文件'],
+  activityCommands: ['Running commands', '正在运行命令'],
+  activityCode: ['Running code', '正在运行代码'],
+  activityWebSearch: ['Searching the web', '正在搜索网页'],
+  activityWebFetch: ['Visiting web pages', '正在访问网页'],
+  activitySubagents: ['Coordinating subagents', '正在协调子智能体'],
+  activityPlan: ['Updating the plan', '正在更新计划'],
+  activityQuestions: ['Waiting for your action', '等待你的操作'],
+  activityTools: ['Calling tools', '正在调用工具'],
 } as const satisfies Record<string, Entry>;
 
 export type StringKey = keyof typeof TABLE;

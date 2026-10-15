@@ -1,4 +1,4 @@
-import { fmt, Strings } from '../i18n/strings';
+import { fmt, Strings, type StringKey } from '../i18n/strings';
 import { firstLine, parseJson, str, int, type JsonElement } from './json';
 import { resultFirstLine, type ContentBlock, type ToolChatData } from './chatNode';
 
@@ -55,6 +55,50 @@ const SUMMARY_KEYS: Record<ToolRowVariant, string[]> = {
 };
 
 const FILE_PATH_VARIANTS = new Set<ToolRowVariant>(['read', 'write', 'edit']);
+
+/** 运行中的调用在做哪类事，给底部状态行用（对齐 web `process-activity` 的 `activity()` / Mac `liveActivity`）。 */
+export function liveActivityKey(name: string | undefined): StringKey {
+  switch (name) {
+    case undefined:
+      return 'activityThinking';
+    case 'read':
+      return 'activityRead';
+    case 'read_image':
+      return 'activityReadImage';
+    case 'grep':
+    case 'glob':
+      return 'activitySearch';
+    case 'write':
+      return 'activityWrite';
+    case 'edit':
+    case 'apply_patch':
+      return 'activityEdit';
+    case 'bash':
+    case 'pwsh':
+    case 'exec_command':
+    case 'write_stdin':
+      return 'activityCommands';
+    case 'run_code':
+      return 'activityCode';
+    case 'web_search':
+      return 'activityWebSearch';
+    case 'web_fetch':
+      return 'activityWebFetch';
+    case 'todo_write':
+    case 'create_goal':
+    case 'update_goal':
+    case 'get_goal':
+      return 'activityPlan';
+    case 'ask_user_question':
+    case 'request_user_input':
+      return 'activityQuestions';
+    default:
+      if (name.endsWith('_inspect')) return 'activitySearch';
+      if (name.startsWith('terminal_')) return 'activityCommands';
+      if (name === 'subagent' || name.startsWith('subagent_')) return 'activitySubagents';
+      return 'activityTools';
+  }
+}
 
 export function classifyTool(name: string): ToolRowVariant {
   return TOOL_VARIANTS[name] ?? 'others';

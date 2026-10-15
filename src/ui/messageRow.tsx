@@ -4,6 +4,7 @@ import { Text, View } from '@tarojs/components';
 import { color_bad, color_good, color_primary, color_text_faint, color_text_sub, color_warning, DIMENS } from '../const';
 import { Strings, fmt } from '../i18n/strings';
 import { questionReplyPairs, turnTriggerPresentation } from '../model/turnTrigger';
+import { liveActivityKey } from '../model/toolRow';
 import type { QuestionReplyPair } from '../model/questionFlow';
 import { Store, useStore } from '../state/store';
 import { openCardDetail } from './cardDetail';
@@ -591,6 +592,28 @@ function TurnProcessRow(props: {
           ))}
         </View>
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * 运行中底部状态（对齐 Mac `RunningStatusRow`）：正在做哪类事 + 本轮自 turn/start 起的用时，
+ * 例如「正在运行命令 · 1分5秒」。只有这一行每秒重绘；不足一秒按一秒（同 web）。
+ */
+export function RunningStatusRow(props: { toolName?: string; startedAt?: number }): JSX.Element {
+  const { startedAt } = props;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (startedAt === undefined) return undefined;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [startedAt]);
+  const label = Strings[liveActivityKey(props.toolName)];
+  const elapsed = startedAt === undefined ? '' : ' · ' + formatDuration(Math.max(1000, now - startedAt));
+  return (
+    <View className={styles.runningStatus}>
+      <Icon name='loader-circle' spin className={styles.runningStatusGlyph} />
+      <Text className={styles.runningStatusText}>{label + elapsed}</Text>
     </View>
   );
 }

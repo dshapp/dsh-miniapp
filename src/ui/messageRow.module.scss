@@ -82,6 +82,29 @@
   color: var(--dsh-color-text-faint);
 }
 
+/* 运行中底部状态行：与页脚同一档的次要灰。 */
+.runningStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 0;
+}
+
+.runningStatusGlyph {
+  font-size: 13px;
+  color: var(--dsh-color-text-faint);
+}
+
+.runningStatusText {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsh-color-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* 点击气泡后浮出的「复制」小泡，与正文同侧、贴在气泡下方。 */
 .copyMenu {
   margin-top: 4px;
