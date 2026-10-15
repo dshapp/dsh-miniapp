@@ -54,6 +54,8 @@ export interface ComposerBarProps {
   sessionId: string;
   /** 进入页面自动聚焦（新建会话页用）。 */
   autoFocus?: boolean;
+  /** 会话还没有草稿时预填的文字（自动化任务页的「新建」用）。 */
+  initialDraft?: string;
   /** 输入框上方的一排胶囊（新建会话页放工作区/预设）。 */
   header?: React.ReactNode;
   /** 第一条消息真的发出去了才回调（新建会话页据此 remember 工作区并跳转）。 */
@@ -506,8 +508,9 @@ export function ComposerBar(props: ComposerBarProps): JSX.Element {
   // 弹层没在呈现问题、但还有可答的 continued 问题（都被收起了）：输入框上方给一条入口。
   const hiddenQuestion = presentedQuestion === undefined ? continuedQuestions[0] : undefined;
 
-  const [draft, setDraft] = React.useState<string>(() => readDraft(sessionId));
-  const [cursor, setCursor] = React.useState<number>(() => readDraft(sessionId).length);
+  const initialDraft = (): string => readDraft(sessionId) || (props.initialDraft ?? '');
+  const [draft, setDraft] = React.useState<string>(initialDraft);
+  const [cursor, setCursor] = React.useState<number>(() => initialDraft().length);
   const [attachments, setAttachments] = React.useState<PhoneAttachment[]>([]);
   const [suggestions, setSuggestions] = React.useState<Suggestion[]>([]);
   const [commandLauncher, setCommandLauncher] = React.useState(false);
@@ -526,7 +529,7 @@ export function ComposerBar(props: ComposerBarProps): JSX.Element {
   const suggestionGeneration = React.useRef(0);
 
   React.useEffect(() => {
-    const saved = readDraft(sessionId);
+    const saved = initialDraft();
     setDraft(saved);
     setCursor(saved.length);
     setAttachments([]);

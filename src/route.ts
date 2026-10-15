@@ -7,6 +7,7 @@ export const MAIN_ROUTE = {
   ARCHIVED: 'pages/archived/index', // 已归档会话
   PAIRING: 'pages/pairing/index', // 扫码 / 手动配对
   PLUGINS: 'pages/plugins/index', // 插件管理
+  AUTOMATIONS: 'pages/automations/index', // 自动化任务
 };
 
 export const ROUTES = Object.keys(MAIN_ROUTE).reduce((acc, key) => {

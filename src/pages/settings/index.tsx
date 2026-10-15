@@ -177,6 +177,10 @@ export default function SettingsPage(): JSX.Element {
             <Text className={styles.label}>{Strings.pluginsTitle}</Text>
             <Icon name='chevron-right' className={styles.chevron} />
           </View>
+          <View className={styles.row} onClick={() => openPage(pageRoutes.AUTOMATIONS)}>
+            <Text className={styles.label}>{Strings.automationsTitle}</Text>
+            <Icon name='chevron-right' className={styles.chevron} />
+          </View>
         </View>
 
         <Text className={styles.sectionTitle}>{Strings.appearance}</Text>

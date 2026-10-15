@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, View } from '@tarojs/components';
 import { Icon } from '../../ui/icon';
 import { Strings } from '../../i18n/strings';
-import { back, openPage, pageRoutes } from '../../framework/page';
+import { back, openPage, pageParams, pageRoutes } from '../../framework/page';
 import { ComposerBar } from '../../ui/composerBar';
 import { NavBar, NavIconButton } from '../../ui/navBar';
 import { getAppModel } from '../../state/appModel';
@@ -36,6 +36,8 @@ export default function NewSessionPage(): JSX.Element {
   const [pickingPreset, setPickingPreset] = React.useState(false);
   const [guidePreset, setGuidePreset] = React.useState<AgentPresetEntry | undefined>(undefined);
   const lastError = useStore(model.lastErrorStore);
+  // 自动化任务页的「新建」带一段预填的开头，进来就聚焦在它后面。
+  const prefill = React.useMemo(() => pageParams().prefill, []);
 
   // 只在进入组合时跑一次（对齐 Android LaunchedEffect(Unit)）：每次页面重新显示都
   // prepare 会在从子页返回时又建一个会话。
@@ -113,6 +115,7 @@ export default function NewSessionPage(): JSX.Element {
           <ComposerBar
             sessionId={sessionId}
             autoFocus
+            initialDraft={prefill}
             header={
               <View className={styles.chips}>
                 {/* 图标对齐安卓 AssistChip 的 Icons.Default.Folder / Icons.Default.Layers；
