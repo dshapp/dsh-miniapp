@@ -507,6 +507,12 @@ const TABLE = {
   automationsFieldCron: ['Cron: minute hour day month weekday (numeric only)', 'Cron：分 时 日 月 星期（仅数字）'],
   automationsFieldTime: ['Local time HH:mm:ss[.SSS]', '本地时间 HH:mm:ss[.SSS]'],
   automationsFieldWeekdays: ['ISO weekdays 1–7, comma separated', 'ISO 星期 1–7，逗号分隔'],
+  pluginsExemption: ['Exact version exemption', '精确版本豁免'],
+  pluginsReviewExemption: ['Review exact version exemption: %s', '审阅精确版本豁免：%s'],
+  pluginsRisk: ['I accept possible crashes and data loss for this exact package/runtime version pair.', '我接受此精确插件/运行时版本组合可能导致崩溃或数据丢失。'],
+  pluginsAcceptRisk: ['Accept risk', '接受风险'],
+  pluginsSavedExemptions: ['Saved exact version exemptions', '已保存的精确版本豁免'],
+  pluginsRevoke: ['Revoke', '撤销'],
 } as const satisfies Record<string, Entry>;
 
 export type StringKey = keyof typeof TABLE;

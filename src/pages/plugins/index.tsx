@@ -4,14 +4,16 @@ import { Switch, Text, View } from '@tarojs/components';
 import { Strings, fmt } from '../../i18n/strings';
 import { back } from '../../framework/page';
 import { getAppModel } from '../../state/appModel';
-import { encodeJson, jget, str, type JsonObject, type JsonValue } from '../../model/json';
-import type { ManagedBundle } from '../../model/management';
+import { arr, encodeJson, isObject, jget, str, type JsonObject, type JsonValue } from '../../model/json';
+import { incompatiblePairs, savedExemptions, type ManagedBundle } from '../../model/management';
 import {
   pluginCancelInstall,
   pluginInstallBundle,
   pluginListBundles,
   pluginListPlugins,
+  pluginListVersionExemptions,
   pluginRemoveBundle,
+  pluginSetVersionExemption,
   pluginSetBundleEnabled,
   pluginSetPluginEnabled,
   pluginWaitForInstall,
@@ -41,6 +43,9 @@ export default function PluginsPage(): JSX.Element {
   const model = getAppModel();
   const [bundles, setBundles] = React.useState<ManagedBundle[]>([]);
   const [plugins, setPlugins] = React.useState<JsonObject[]>([]);
+  const [exemptions, setExemptions] = React.useState<JsonValue | undefined>(undefined);
+  /** 最近一次变更 / 安装的结果：里面可能报出不兼容的版本组合。 */
+  const [lastResult, setLastResult] = React.useState<JsonValue | undefined>(undefined);
   const [factsReady, setFactsReady] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | undefined>(undefined);
@@ -51,9 +56,14 @@ export default function PluginsPage(): JSX.Element {
   const refresh = React.useCallback(async () => {
     try {
       const transport = model.managementTransport();
-      const [nextBundles, nextPlugins] = await Promise.all([pluginListBundles(transport), pluginListPlugins(transport)]);
+      const [nextBundles, nextPlugins, nextExemptions] = await Promise.all([
+        pluginListBundles(transport),
+        pluginListPlugins(transport),
+        pluginListVersionExemptions(transport),
+      ]);
       setBundles(nextBundles);
       setPlugins(nextPlugins);
+      setExemptions(nextExemptions);
       setFactsReady(true);
     } catch (reason) {
       setFactsReady(false);
@@ -65,6 +75,7 @@ export default function PluginsPage(): JSX.Element {
   const locked = busy || pending !== undefined || !factsReady;
 
   const noteOutcome = (outcome: JsonValue): void => {
+    setLastResult(outcome);
     const status = str(jget(outcome, 'application')) ?? str(jget(outcome, 'status'));
     setNotice(status ?? Strings.managementDone);
   };
@@ -143,7 +154,19 @@ export default function PluginsPage(): JSX.Element {
     await change(() => pluginRemoveBundle(model.managementTransport(), bundle.name));
   };
 
+  /** 审阅一组精确版本豁免：弹窗里写明组合与风险，确认即视为接受风险（安卓是勾选 + 确认）。 */
+  const reviewExemption = async (name: string, version: string, runtimeVersion: string): Promise<void> => {
+    if (locked) return;
+    const content = name + '@' + version + ' / ' + runtimeVersion + '\n' + Strings.pluginsRisk;
+    const result = await Taro.showModal({ title: Strings.pluginsExemption, content, confirmText: Strings.pluginsAcceptRisk, cancelText: Strings.cancel });
+    if (!result.confirm) return;
+    await change(() => pluginSetVersionExemption(model.managementTransport(), name + '@' + version, runtimeVersion, true));
+  };
+
   const selected = detail === undefined ? undefined : bundles.find(bundle => bundle.name === detail);
+  const pairs = incompatiblePairs(lastResult, bundles);
+  const saved = savedExemptions(exemptions);
+  const warnings = (arr(isObject(exemptions) ? exemptions.warnings : undefined) ?? []).filter((item): item is string => typeof item === 'string');
   const action = (text: string, enabled: boolean, onClick: () => void, danger = false): JSX.Element => (
     <Text
       className={(danger ? styles.actionDanger : styles.action) + (enabled ? '' : ' ' + styles.actionOff)}
@@ -243,6 +266,34 @@ export default function PluginsPage(): JSX.Element {
                 <Text className={styles.sectionTitle}>{label}</Text>
                 {list.length === 0 ? <Text className={styles.hint}>{Strings.managementEmpty}</Text> : list.map(bundleCard)}
               </View>
+            ))}
+            {pairs.length === 0 ? null : (
+              <View className={styles.card}>
+                {pairs.map(pair => (
+                  <Text
+                    key={pair.name + '@' + pair.version + '/' + pair.runtimeVersion}
+                    className={styles.action + (locked ? ' ' + styles.actionOff : '')}
+                    onClick={() => void reviewExemption(pair.name, pair.version, pair.runtimeVersion)}
+                  >
+                    {fmt(Strings.pluginsReviewExemption, pair.name + '@' + pair.version + ' / ' + pair.runtimeVersion)}
+                  </Text>
+                ))}
+              </View>
+            )}
+            <Text className={styles.sectionTitle}>{Strings.pluginsSavedExemptions}</Text>
+            {saved.length === 0 ? <Text className={styles.hint}>{Strings.managementEmpty}</Text> : null}
+            {saved.map(item => (
+              <View key={item.packageVersion + '/' + item.runtimeVersion} className={styles.card}>
+                <View className={styles.titleRow}>
+                  <Text className={styles.title}>{item.packageVersion + ' / ' + item.runtimeVersion}</Text>
+                  {action(Strings.pluginsRevoke, !locked, () =>
+                    void change(() => pluginSetVersionExemption(model.managementTransport(), item.packageVersion, item.runtimeVersion, false)),
+                  true)}
+                </View>
+              </View>
+            ))}
+            {warnings.map(warning => (
+              <Text key={warning} className={styles.hint}>{warning}</Text>
             ))}
           </View>
         )}

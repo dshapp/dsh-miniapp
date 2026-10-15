@@ -14,7 +14,9 @@ import {
   automationTiming,
   decodeAutomations,
   decodeBundle,
+  incompatiblePairs,
   providerSettingsRows,
+  savedExemptions,
   scheduleExpected,
   validManagementCron,
 } from '../../src/model/management';
@@ -136,4 +138,11 @@ test('自动化规则的时间规则编辑：校验与 change 形状对齐安卓
   assert.equal(automationDraftError({ ...weekly, kind: 'at', at: '2026-10-16 09:00' }), 'UTC timestamp');
   assert.equal(validManagementCron('*/15 9-17 * * 1-5'), true);
   assert.equal(validManagementCron('0 25 * * *'), false);
+});
+
+test('插件精确版本豁免：不兼容组合去重、已保存豁免摊平', () => {
+  const bundle = decodeBundle({ name: 'x', error: { incompatible: [{ name: 'x', version: '1.0.0', runtimeVersion: '0.2.1' }] } });
+  const result = { error: { incompatible: [{ name: 'x', version: '1.0.0', runtimeVersion: '0.2.1' }, { name: 'y', version: '2.0.0', runtimeVersion: '0.2.1' }] } };
+  assert.deepEqual(incompatiblePairs(result, [bundle]).map(pair => pair.name), ['x', 'y']);
+  assert.deepEqual(savedExemptions({ exemptions: { 'x@1.0.0': ['0.2.1', '0.2.2'] } }).length, 2);
 });

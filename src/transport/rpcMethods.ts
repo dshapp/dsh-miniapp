@@ -852,6 +852,26 @@ export async function pluginCancelInstall(transport: RpcTransport, requestId: st
   return transport.call('pluginManager/cancelInstall', { requestId });
 }
 
+export async function pluginListVersionExemptions(transport: RpcTransport): Promise<JsonValue> {
+  return transport.call('pluginManager/listVersionExemptions', {});
+}
+
+const PACKAGE_VERSION = /^(?:@[A-Za-z0-9._-]+\/)?[A-Za-z0-9._-]+@[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?(?:\+[A-Za-z0-9.-]+)?$/;
+const RUNTIME_VERSION = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?(?:\+[A-Za-z0-9.-]+)?$/;
+
+/** 精确到「插件包@版本 × 运行时版本」的兼容豁免；开启必须显式接受风险（对齐安卓 versionExemption）。 */
+export async function pluginSetVersionExemption(
+  transport: RpcTransport,
+  packageVersion: string,
+  runtimeVersion: string,
+  enabled: boolean,
+): Promise<JsonValue> {
+  if (!PACKAGE_VERSION.test(packageVersion) || !RUNTIME_VERSION.test(runtimeVersion)) throw new Error('Invalid exact version pair');
+  const args: JsonObject = { packageVersion, runtimeVersion, enabled };
+  if (enabled) args.acceptRisk = true;
+  return transport.call('pluginManager/setVersionExemption', args);
+}
+
 export async function scheduleCatalog(transport: RpcTransport): Promise<ManagedAutomation[]> {
   return decodeAutomations(await transport.call('schedule/catalog', {}));
 }

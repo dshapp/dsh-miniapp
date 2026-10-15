@@ -58,6 +58,39 @@ export function decodeBundles(value: JsonValue | undefined): ManagedBundle[] {
   return value.filter(isObject).map(decodeBundle);
 }
 
+/** 一组不兼容的「插件包版本 × 运行时版本」。 */
+export interface IncompatiblePair { name: string; version: string; runtimeVersion: string }
+
+/** 安装结果与各 bundle 诊断里报出的不兼容组合，去重（对齐安卓 PluginManagerScreen 的 incompatible）。 */
+export function incompatiblePairs(result: JsonValue | undefined, bundles: ManagedBundle[]): IncompatiblePair[] {
+  const raw = [
+    ...(arr(jget(jget(result, 'error'), 'incompatible')) ?? arr(jget(jget(result, 'packageResult'), 'incompatible')) ?? []),
+    ...bundles.flatMap(bundle => arr(jget(bundle.raw.error, 'incompatible')) ?? []),
+  ];
+  const seen = new Set<string>();
+  const out: IncompatiblePair[] = [];
+  for (const item of raw) {
+    const name = str(jget(item, 'name'));
+    const version = str(jget(item, 'version'));
+    const runtimeVersion = str(jget(item, 'runtimeVersion'));
+    if (name === undefined || version === undefined || runtimeVersion === undefined) continue;
+    const key = name + '@' + version + '/' + runtimeVersion;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ name, version, runtimeVersion });
+  }
+  return out;
+}
+
+/** listVersionExemptions 摊平成「包@版本 / 运行时」行。 */
+export function savedExemptions(value: JsonValue | undefined): Array<{ packageVersion: string; runtimeVersion: string }> {
+  const map = jget(value, 'exemptions');
+  if (!isObject(map)) return [];
+  return Object.entries(map).flatMap(([packageVersion, runtimes]) =>
+    (arr(runtimes) ?? []).flatMap(runtime => (typeof runtime === 'string' ? [{ packageVersion, runtimeVersion: runtime }] : [])),
+  );
+}
+
 /** schedule/catalog 的一项（自动化任务规则）。 */
 export interface ManagedAutomation {
   raw: JsonObject;
