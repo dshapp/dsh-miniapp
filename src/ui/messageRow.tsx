@@ -20,6 +20,7 @@ import type {
   AssistantStepData,
   ChatNode,
   ContentBlock,
+  ToolChangeNode,
   TurnProcessSpec,
   TurnTriggerNode,
   TurnTailData,
@@ -356,6 +357,39 @@ function QuestionReplyRow(props: { pairs: QuestionReplyPair[]; findQuery: string
         </View>
       ))}
     </View>
+  );
+}
+
+/**
+ * 工具增减提示（对齐 Mac `ToolChangeRow`）：单个变更只是一行提示；多个变更标题旁给灰色计数，
+ * 点开在详情里列出「新增: a, b」「移除: c」。
+ */
+function ToolChangeRow(props: { data: ToolChangeNode }): JSX.Element {
+  const { added, removed } = props.data;
+  if (added.length + removed.length === 1) {
+    const title = added.length === 1 ? fmt(Strings.messageToolAdded, added[0]) : fmt(Strings.messageToolRemoved, removed[0]);
+    return (
+      <View className={styles.card}>
+        <CardHeader name='wrench' summary={title} />
+      </View>
+    );
+  }
+  const summary =
+    added.length > 0 && removed.length > 0
+      ? fmt(Strings.messageToolsChanged, added.length, removed.length)
+      : added.length > 0
+        ? fmt(Strings.messageToolsAddedCount, added.length)
+        : fmt(Strings.messageToolsRemovedCount, removed.length);
+  const details: string[] = [];
+  if (added.length > 0) details.push(fmt(Strings.messageToolsAdded, added.join(', ')));
+  if (removed.length > 0) details.push(fmt(Strings.messageToolsRemoved, removed.join(', ')));
+  const text = details.join('\n');
+  return (
+    <DetailCard name='wrench' title={Strings.messageToolsUpdated} suffix={summary} copyText={text}>
+      <Text className={styles.detailText} selectable userSelect>
+        {text}
+      </Text>
+    </DetailCard>
   );
 }
 
@@ -787,5 +821,7 @@ export function MessageRow(props: MessageRowProps): JSX.Element {
       return <WorkflowRunCard data={node.data} />;
     case 'unknownSurface':
       return <UnknownSurfaceRow data={node.data} />;
+    case 'toolChange':
+      return <ToolChangeRow data={node.data} />;
   }
 }

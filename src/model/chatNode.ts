@@ -238,6 +238,12 @@ export interface TurnTriggerNode {
 
 export interface UnknownSurfaceNode { seq: number; time: number; type: string; data?: JsonElement }
 
+/**
+ * 工具增减提示（web `ContextInjectionRow` 的工具形态）：下一次请求的工具表与上一次不同时，
+ * agent loop 记一条 `developer/message`，其中 tool-addition / tool-removal 块带 toolName。
+ */
+export interface ToolChangeNode { seq: number; time: number; added: string[]; removed: string[] }
+
 export interface CompactionSummaryNode {
   compactionId: string;
   seq: number;
@@ -314,7 +320,8 @@ export type ChatNode =
   | { kind: 'turnTail'; data: TurnTailData }
   | { kind: 'workflow'; data: WorkflowRunData }
   | { kind: 'turnProcess'; spec: TurnProcessSpec }
-  | { kind: 'unknownSurface'; data: UnknownSurfaceNode };
+  | { kind: 'unknownSurface'; data: UnknownSurfaceNode }
+  | { kind: 'toolChange'; data: ToolChangeNode };
 
 export function chatNodeId(node: ChatNode): string {
   switch (node.kind) {
@@ -332,6 +339,7 @@ export function chatNodeId(node: ChatNode): string {
     case 'workflow': return `wf-${node.data.runId}`;
     case 'turnProcess': return `tp-${node.spec.turn}`;
     case 'unknownSurface': return `unk-${node.data.seq}`;
+    case 'toolChange': return `tc-${node.data.seq}`;
   }
 }
 
@@ -352,6 +360,7 @@ export function chatNodeAnchorSeq(node: ChatNode): number {
     case 'workflow': return node.data.anchorSeq;
     case 'turnProcess': return node.spec.processStartSeq - 0.001;
     case 'unknownSurface': return node.data.seq;
+    case 'toolChange': return node.data.seq;
   }
 }
 

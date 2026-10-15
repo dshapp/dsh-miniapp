@@ -1488,6 +1488,9 @@ export class SessionStore {
       // 对话区不显示 system prompt（web `isVisibleChatNode`）；在这里认领，免得落进未知 surface 兜底。
       case 'system/message':
         break;
+      case 'developer/message':
+        this.applyDeveloperMessage(event);
+        break;
       default:
         this.applyUnknownSurface(event);
         break;
@@ -1503,6 +1506,25 @@ export class SessionStore {
 
   private isReplacementSurface(event: SessionEvent): boolean {
     return str(jget(event.surfaceOp, 'op')) === 'replace';
+  }
+
+  /**
+   * developer/message 是上下文（web `developerMessageDefinition`）：只有其中的工具增减
+   * 留一条提示行（web `isVisibleChatNode`），其余 developer 内容一律不进对话区。
+   */
+  private applyDeveloperMessage(event: SessionEvent): void {
+    const added: string[] = [];
+    const removed: string[] = [];
+    for (const block of arr(jget(jget(event.data, 'message'), 'content')) ?? []) {
+      const name = str(jget(block, 'toolName'));
+      if (name === undefined) continue;
+      const type = str(jget(block, 'type'));
+      if (type === 'tool-addition') added.push(name);
+      else if (type === 'tool-removal') removed.push(name);
+    }
+    if (added.length === 0 && removed.length === 0) return;
+    const node: ChatNode = { kind: 'toolChange', data: { seq: event.seq, time: event.time, added, removed } };
+    this.contexts.set(chatNodeId(node), { kind: 'finalized', node });
   }
 
   private applyUnknownSurface(event: SessionEvent): void {
@@ -2705,6 +2727,7 @@ export class SessionStore {
         case 'command':
         case 'workflow':
         case 'unknownSurface':
+        case 'toolChange':
           acc.processAnchors.push(chatNodeAnchorSeq(node));
           break;
         default:

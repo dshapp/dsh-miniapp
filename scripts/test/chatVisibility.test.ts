@@ -20,6 +20,19 @@ test('system/message 不再出系统提示卡片，也不落进未知 surface', 
   assert.deepEqual(store.nodes.filter(node => node.kind !== 'turnTail').map(node => node.kind), []);
 });
 
+test('developer/message 只留工具增减提示行，其余内容不显示也不落进未知 surface', () => {
+  const store = new SessionStore('s1');
+  store.apply(ev('turn/start', 1, { turn: 1 }), undefined);
+  const dev = (seq: number, content: unknown[]) =>
+    ev('developer/message', seq, { turn: 1, step: 1, message: { role: 'developer', content } }, { surfaceOp: 'append' });
+  store.apply(dev(2, text('note')), undefined);
+  store.apply(dev(3, [{ type: 'tool-addition', toolName: 'a' }, { type: 'tool-removal', toolName: 'c' }]), undefined);
+  const rows = store.nodes.filter(node => node.kind !== 'turnTail');
+  assert.deepEqual(rows.map(node => node.kind), ['toolChange']);
+  const change = rows[0];
+  assert.deepEqual(change.kind === 'toolChange' ? [change.data.added, change.data.removed] : [], [['a'], ['c']]);
+});
+
 test('普通上下文注入不进对话区', () => {
   const store = new SessionStore('s1');
   store.apply(ev('user/message', 1, { id: 'c1', content: text('AGENTS.md'), source: { kind: 'agent-instructions' } }), undefined);
