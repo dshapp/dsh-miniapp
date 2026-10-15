@@ -8,7 +8,16 @@ import { decodeSubagentMode } from '../../src/transport/rpcMethods';
 import { goalPhaseAction } from '../../src/model/format';
 import { decodeToolError, resultFirstLine } from '../../src/model/chatNode';
 import { preparingArguments, toolRowModel } from '../../src/model/toolRow';
-import { decodeBundle, providerSettingsRows, scheduleExpected } from '../../src/model/management';
+import {
+  automationDraft,
+  automationDraftError,
+  automationTiming,
+  decodeAutomations,
+  decodeBundle,
+  providerSettingsRows,
+  scheduleExpected,
+  validManagementCron,
+} from '../../src/model/management';
 
 const ev = (type: string, seq: number, data: unknown) => ({ type, seq, time: seq, data }) as never;
 
@@ -112,4 +121,19 @@ test('管理页口径：bundle 安装目标、ScheduleRecord expected、凭证�
     { namespaces: [{ ns: 'llm', value: { providers: { openai: { apiKeyEnv: 'MY_KEY' } } } }] },
   );
   assert.deepEqual(rows.map(row => [row.credentialRef, row.derivedRef]), [['MY_KEY', false], [undefined, false]]);
+});
+
+test('自动化规则的时间规则编辑：校验与 change 形状对齐安卓 AutomationDraft', () => {
+  const [entry] = decodeAutomations([{ id: 'r1', sessionId: 's1', kind: 'daily', title: 't', prompt: 'p', status: 'active', scheduledAt: '2026-10-16T01:00:00Z', time: '09:00:00', timeZone: 'Asia/Shanghai' }]);
+  const draft = automationDraft(entry);
+  assert.equal(automationTiming(draft), undefined);
+  const weekly = { ...draft, timingChanged: true, kind: 'weekly', weekdays: '5,1' };
+  assert.equal(automationDraftError(weekly), undefined);
+  assert.deepEqual(automationTiming(weekly), { kind: 'weekly', weekly: { time_zone: 'Asia/Shanghai', time: '09:00:00', weekdays: [1, 5] } });
+  assert.equal(automationDraftError({ ...weekly, weekdays: '1,1' }), 'weekdays');
+  assert.equal(automationDraftError({ ...weekly, kind: 'every', seconds: '30' }), 'interval');
+  assert.deepEqual(automationTiming({ ...weekly, kind: 'every', seconds: '120' }), { kind: 'every', every_seconds: 120 });
+  assert.equal(automationDraftError({ ...weekly, kind: 'at', at: '2026-10-16 09:00' }), 'UTC timestamp');
+  assert.equal(validManagementCron('*/15 9-17 * * 1-5'), true);
+  assert.equal(validManagementCron('0 25 * * *'), false);
 });

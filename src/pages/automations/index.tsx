@@ -1,18 +1,23 @@
 import React from 'react';
 import Taro from '@tarojs/taro';
-import { Input, Text, Textarea, View } from '@tarojs/components';
+import { Input, Switch, Text, Textarea, View } from '@tarojs/components';
 import { Strings, fmt } from '../../i18n/strings';
 import { back, openPage, pageRoutes } from '../../framework/page';
 import { getAppModel } from '../../state/appModel';
 import { arr, bool, isObject, jget, str, type JsonObject } from '../../model/json';
-import { automationEditError, type ManagedAutomation } from '../../model/management';
+import {
+  AUTOMATION_KINDS,
+  automationDraft,
+  automationDraftError,
+  type AutomationDraft,
+  type ManagedAutomation,
+} from '../../model/management';
 import { scheduleCatalog, scheduleDelete, scheduleHistory, scheduleUpdate } from '../../transport/rpcMethods';
 import { NavBar, NavIconButton, NavTitle } from '../../ui/navBar';
 import { PageShell } from '../../ui/pageShell';
 import { managementError, useManagementRefresh } from '../../ui/management';
 import styles from '../../ui/management.module.scss';
 
-interface Draft { entry: ManagedAutomation; title: string; prompt: string }
 interface History { entry: ManagedAutomation; records: JsonObject[]; nextBefore?: string; pruned: boolean }
 
 async function confirm(content: string): Promise<boolean> {
@@ -32,7 +37,7 @@ export default function AutomationsPage(): JSX.Element {
   const [error, setError] = React.useState<string | undefined>(undefined);
   const [notice, setNotice] = React.useState<string | undefined>(undefined);
   const [query, setQuery] = React.useState('');
-  const [draft, setDraft] = React.useState<Draft | undefined>(undefined);
+  const [draft, setDraft] = React.useState<AutomationDraft | undefined>(undefined);
   const [history, setHistory] = React.useState<History | undefined>(undefined);
 
   const refresh = React.useCallback(async () => {
@@ -64,9 +69,9 @@ export default function AutomationsPage(): JSX.Element {
 
   const save = (): void => {
     const current = draft;
-    if (current === undefined || !factsReady || automationEditError(current.title, current.prompt) !== undefined || !isActive(current.entry)) return;
+    if (current === undefined || !factsReady || automationDraftError(current) !== undefined || !isActive(current.entry)) return;
     void run(async () => {
-      const outcome = await scheduleUpdate(model.managementTransport(), current.entry, current.title, current.prompt);
+      const outcome = await scheduleUpdate(model.managementTransport(), current);
       if (isObject(jget(outcome, 'record'))) {
         setDraft(undefined);
         setNotice(Strings.automationsSaved);
@@ -138,8 +143,22 @@ export default function AutomationsPage(): JSX.Element {
 
   let body: JSX.Element;
   if (draft !== undefined) {
-    const invalid = automationEditError(draft.title, draft.prompt);
+    const invalid = automationDraftError(draft);
     const active = isActive(draft.entry);
+    const field = (label: string, value: string, key: 'at' | 'seconds' | 'time' | 'zone' | 'weekdays' | 'expression'): JSX.Element => (
+      <View>
+        <Text className={styles.label}>{label}</Text>
+        <Input className={styles.input} value={value} disabled={busy} onInput={event => setDraft({ ...draft, [key]: event.detail.value })} />
+      </View>
+    );
+    const pickKind = async (): Promise<void> => {
+      try {
+        const result = await Taro.showActionSheet({ itemList: AUTOMATION_KINDS });
+        setDraft({ ...draft, kind: AUTOMATION_KINDS[result.tapIndex] });
+      } catch {
+        // 取消选择。
+      }
+    };
     body = (
       <View className={styles.card}>
         <Text className={styles.meta}>{draft.entry.sessionId}</Text>
@@ -154,7 +173,25 @@ export default function AutomationsPage(): JSX.Element {
           autoHeight
           onInput={event => setDraft({ ...draft, prompt: event.detail.value })}
         />
-        <Text className={styles.hint}>{Strings.automationsTimingKept}</Text>
+        <View className={styles.titleRow}>
+          <Text className={styles.detail} style={{ flex: 1 }}>{Strings.automationsChangeTiming}</Text>
+          <Switch checked={draft.timingChanged} disabled={busy} onChange={event => setDraft({ ...draft, timingChanged: event.detail.value })} />
+        </View>
+        {!draft.timingChanged ? (
+          <Text className={styles.hint}>{Strings.automationsTimingKept}</Text>
+        ) : (
+          <View>
+            <View className={styles.actions}>
+              {action(fmt(Strings.automationsRule, draft.kind), !busy, () => void pickKind())}
+            </View>
+            {draft.kind === 'at' ? field(Strings.automationsFieldAt, draft.at, 'at') : null}
+            {draft.kind === 'every' ? field(Strings.automationsFieldSeconds, draft.seconds, 'seconds') : null}
+            {draft.kind === 'daily' || draft.kind === 'weekly' || draft.kind === 'cron' ? field(Strings.automationsFieldZone, draft.zone, 'zone') : null}
+            {draft.kind === 'cron' ? field(Strings.automationsFieldCron, draft.expression, 'expression') : null}
+            {draft.kind === 'daily' || draft.kind === 'weekly' ? field(Strings.automationsFieldTime, draft.time, 'time') : null}
+            {draft.kind === 'weekly' ? field(Strings.automationsFieldWeekdays, draft.weekdays, 'weekdays') : null}
+          </View>
+        )}
         {invalid === undefined ? null : <Text className={styles.danger}>{fmt(Strings.automationsInvalid, invalid)}</Text>}
         {active ? null : <Text className={styles.danger}>{Strings.automationsInactive}</Text>}
         <View className={styles.actions}>
@@ -206,7 +243,11 @@ export default function AutomationsPage(): JSX.Element {
               {entry.active
                 ? action(Strings.automationsEdit, !busy && factsReady, () => {
                     setNotice(undefined);
-                    setDraft({ entry, title: entry.title, prompt: entry.prompt });
+                    try {
+                      setDraft(automationDraft(entry));
+                    } catch (reason) {
+                      setError(managementError(reason));
+                    }
                   })
                 : null}
               {entry.active ? action(Strings.automationsDelete, !busy && factsReady, () => void remove(entry), true) : null}

@@ -11,9 +11,11 @@ import type {
 } from '../model/types';
 import { decodeHistoryEntry, decodeSessionSummary, decodeWorkspaceView } from '../model/frames';
 import {
+  automationTiming,
   decodeAutomations,
   decodeBundles,
   scheduleExpected,
+  type AutomationDraft,
   type ManagedAutomation,
   type ManagedBundle,
 } from '../model/management';
@@ -854,19 +856,17 @@ export async function scheduleCatalog(transport: RpcTransport): Promise<ManagedA
   return decodeAutomations(await transport.call('schedule/catalog', {}));
 }
 
-export async function scheduleUpdate(
-  transport: RpcTransport,
-  entry: ManagedAutomation,
-  title: string,
-  prompt: string,
-): Promise<JsonValue> {
-  return transport.call('schedule/update', request({
-    sessionId: entry.sessionId,
-    id: entry.id,
-    expected: scheduleExpected(entry.raw),
-    title: title.trim(),
-    prompt: prompt.trim(),
-  }));
+export async function scheduleUpdate(transport: RpcTransport, draft: AutomationDraft): Promise<JsonValue> {
+  const body: JsonObject = {
+    sessionId: draft.entry.sessionId,
+    id: draft.entry.id,
+    expected: scheduleExpected(draft.entry.raw),
+    title: draft.title.trim(),
+    prompt: draft.prompt.trim(),
+  };
+  const change = automationTiming(draft);
+  if (change !== undefined) body.change = change;
+  return transport.call('schedule/update', request(body));
 }
 
 export async function scheduleDelete(transport: RpcTransport, entry: ManagedAutomation): Promise<JsonValue> {

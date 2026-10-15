@@ -116,12 +116,122 @@ export function scheduleExpected(entry: JsonObject): JsonObject {
   return out;
 }
 
-/** 编辑只改名称与内容；时间规则保留原精确目标（安卓的规则编辑本端未移植）。 */
-export function automationEditError(title: string, prompt: string): 'title' | 'prompt' | undefined {
-  const trimmed = title.trim();
-  if (trimmed.length === 0 || trimmed.length > 120) return 'title';
-  if (prompt.trim().length === 0) return 'prompt';
+/**
+ * 规则编辑草稿（对齐安卓 `AutomationDraft`）：快照不可变——广播与冲突都不能替换编辑开始时的 expected。
+ * 不勾「修改时间规则」时保留原精确目标；after 规则只能改成 at（绝对时间）或别的规则。
+ */
+export interface AutomationDraft {
+  entry: ManagedAutomation;
+  title: string;
+  prompt: string;
+  timingChanged: boolean;
+  kind: string;
+  at: string;
+  seconds: string;
+  time: string;
+  zone: string;
+  weekdays: string;
+  expression: string;
+}
+
+export const AUTOMATION_KINDS = ['at', 'every', 'daily', 'weekly', 'cron'];
+
+export function automationDraft(entry: ManagedAutomation): AutomationDraft {
+  const raw = entry.raw;
+  const weekdays = arr(raw.weekdays);
+  return {
+    entry,
+    title: entry.title,
+    prompt: entry.prompt,
+    timingChanged: false,
+    kind: entry.kind === 'after' ? 'at' : entry.kind,
+    at: str(raw.scheduledAt) ?? '',
+    seconds: raw.everySeconds === undefined || raw.everySeconds === null ? '3600' : String(raw.everySeconds),
+    time: str(raw.time) ?? '09:00:00',
+    zone: str(raw.timeZone) ?? 'UTC',
+    weekdays: weekdays === undefined ? '1,2,3,4,5' : weekdays.map(item => String(item)).join(','),
+    expression: str(raw.expression) ?? '0 9 * * *',
+  };
+}
+
+const MAX_SAFE = 9007199254740991;
+
+/** 数字五段 cron（分 时 日 月 星期），与安卓 `validManagementCron` 同一口径。 */
+export function validManagementCron(expression: string): boolean {
+  if (expression !== expression.trim()) return false;
+  const fields = expression.split(/\s+/);
+  const bounds: Array<[number, number]> = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 7]];
+  if (fields.length !== 5) return false;
+  return fields.every((field, i) =>
+    field.split(',').every(part => {
+      const match = /^(\*|[0-9]+(?:-[0-9]+)?)(?:\/([0-9]+))?$/.exec(part);
+      if (match === null) return false;
+      const step = match[2] ?? '';
+      if (step.length > 0 && !(Number(step) >= 1 && Number(step) <= MAX_SAFE)) return false;
+      const selector = match[1];
+      if (selector === '*') return true;
+      const range = selector.split('-').map(Number);
+      const [low, high] = bounds[i];
+      if (!range.every(value => Number.isInteger(value) && value >= low && value <= high)) return false;
+      if (range.length !== 2 && step.length > 0) return false;
+      return range.length !== 2 || range[0] <= range[1];
+    }),
+  );
+}
+
+function validTimeZone(zone: string): boolean {
+  if (zone === 'UTC') return true;
+  if (!/^[A-Za-z_+-]+(\/[A-Za-z0-9_+-]+)+$/.test(zone)) return false;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone });
+    return true;
+  } catch {
+    // 运行时没有完整时区库时只按格式判，最终由主机校验。
+    return typeof Intl === 'undefined';
+  }
+}
+
+/** 第一个无效字段的名字；全部合法返回 undefined。 */
+export function automationDraftError(draft: AutomationDraft): string | undefined {
+  const title = draft.title.trim();
+  if (title.length === 0 || title.length > 120) return 'title';
+  if (draft.prompt.trim().length === 0) return 'prompt';
+  if (!draft.timingChanged) return undefined;
+  switch (draft.kind) {
+    case 'every':
+      return /^[0-9]+$/.test(draft.seconds) && Number(draft.seconds) >= 60 && Number(draft.seconds) <= MAX_SAFE ? undefined : 'interval';
+    case 'at':
+      return /^[0-9]{4}-.*Z$/.test(draft.at) && !Number.isNaN(Date.parse(draft.at)) ? undefined : 'UTC timestamp';
+    case 'daily':
+    case 'weekly':
+    case 'cron':
+      break;
+    default:
+      return 'kind';
+  }
+  if (!validTimeZone(draft.zone)) return 'time zone';
+  if (draft.kind === 'cron') return validManagementCron(draft.expression) ? undefined : 'cron';
+  const time = /^([0-9]{2}):([0-9]{2}):([0-9]{2})(\.[0-9]{1,3})?$/.exec(draft.time);
+  if (time === null || Number(time[1]) > 23 || Number(time[2]) > 59 || Number(time[3]) > 59) return 'time';
+  if (draft.kind === 'weekly') {
+    const days = draft.weekdays.split(',').map(item => Number(item.trim()));
+    if (days.length === 0 || days.some(day => !Number.isInteger(day) || day < 1 || day > 7) || new Set(days).size !== days.length) {
+      return 'weekdays';
+    }
+  }
   return undefined;
+}
+
+/** schedule/update 的 change（ScheduleTimingChange）；没勾修改时间规则就不带。 */
+export function automationTiming(draft: AutomationDraft): JsonObject | undefined {
+  if (!draft.timingChanged) return undefined;
+  if (draft.kind === 'at') return { kind: 'at', at: draft.at };
+  if (draft.kind === 'every') return { kind: 'every', every_seconds: Number(draft.seconds) };
+  const body: JsonObject = { time_zone: draft.zone };
+  if (draft.kind === 'cron') body.expression = draft.expression;
+  else body.time = draft.time;
+  if (draft.kind === 'weekly') body.weekdays = draft.weekdays.split(',').map(item => Number(item.trim())).sort((a, b) => a - b);
+  return { kind: draft.kind, [draft.kind]: body };
 }
 
 /** 宿主设置：llm/listConfigurableProviders 的一项，加上凭证引用的只读状态。 */

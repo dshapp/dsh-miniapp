@@ -499,6 +499,14 @@ const TABLE = {
   chatNotPaired: ['Not paired with a Desktop yet', '还没有与电脑配对'],
   chatNotPairedHint: ['Go back and pair first; this session cannot load until then.', '请返回先完成配对，之后才能加载这个会话。'],
   goBack: ['Back', '返回'],
+  automationsChangeTiming: ['Change timing (otherwise keep the exact target)', '修改时间规则（否则保留原精确目标时间）'],
+  automationsRule: ['Rule: %s', '规则：%s'],
+  automationsFieldAt: ['Absolute UTC timestamp (YYYY-MM-DDTHH:mm:ssZ)', '绝对 UTC 时间（YYYY-MM-DDTHH:mm:ssZ）'],
+  automationsFieldSeconds: ['Interval seconds (minimum 60)', '间隔秒数（至少 60）'],
+  automationsFieldZone: ['Explicit IANA time zone', '显式 IANA 时区'],
+  automationsFieldCron: ['Cron: minute hour day month weekday (numeric only)', 'Cron：分 时 日 月 星期（仅数字）'],
+  automationsFieldTime: ['Local time HH:mm:ss[.SSS]', '本地时间 HH:mm:ss[.SSS]'],
+  automationsFieldWeekdays: ['ISO weekdays 1–7, comma separated', 'ISO 星期 1–7，逗号分隔'],
 } as const satisfies Record<string, Entry>;
 
 export type StringKey = keyof typeof TABLE;
