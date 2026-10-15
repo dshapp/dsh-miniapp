@@ -1,7 +1,7 @@
-import { bool, jget, str, type JsonValue, type JsonObject } from '../model/json';
+import { bool, int, jget, str, type JsonValue, type JsonObject } from '../model/json';
 import { internalError, ApiException, type RpcTransport } from './types';
 import type {
-  AgentPresetListValue, CommandDescriptor, CommandExecutionValue, FileReferenceItem, GoalRef,
+  AgentPresetListValue, CommandDescriptor, CommandExecutionValue, FileReferenceItem, GoalActivation, GoalRef,
   SessionAddress, SessionCreateValue, SessionForkValue, SessionHistoryValue, SessionId, SessionListValue,
   SessionModelsValue, SessionPageValue, SessionReferenceItem, SessionSearchValue, SessionSelectModelValue,
   SkillListValue, SubagentAddress, SubagentListEntry, SubagentListValue, SubagentMode, SessionAttachmentValue,
@@ -623,8 +623,6 @@ export async function agentPresetList(transport: RpcTransport): Promise<AgentPre
       description: str(jget(preset, 'description')),
       broken: str(jget(preset, 'broken')),
     })),
-    // 主机没发这个字段（0.1.6 之前）时按允许处理，与 Mac/Android 的默认 true 同口径。
-    modeSelectionEnabled: bool(jget(value, 'modeSelectionEnabled')) ?? true,
   };
 }
 
@@ -684,6 +682,15 @@ export async function goalClear(transport: RpcTransport, sessionId: SessionId, r
   await transport.call('goals/clear', goalRefArgs(sessionId, ref));
 }
 
+/** 读目标的进程内 activation（0.2.1）；没有当前目标时主机回 undefined。 */
+export async function goalGet(transport: RpcTransport, sessionId: SessionId): Promise<GoalActivation | undefined> {
+  const value = await transport.call('goals/get', { agentId: sessionId });
+  const id = str(jget(value, 'id'));
+  const revision = int(jget(value, 'revision'));
+  if (id === undefined || revision === undefined) return undefined;
+  return { id, revision, activation: str(jget(value, 'activation')) };
+}
+
 export async function goalPause(transport: RpcTransport, sessionId: SessionId, ref: GoalRef): Promise<void> {
   await transport.call('goals/pause', goalRefArgs(sessionId, ref));
 }
@@ -737,9 +744,9 @@ export async function subagentCatalog(
   return { entries, parentAvailable: true };
 }
 
-/** 0.1.7 多了 `unknown`（迁移补出来的目录项）：只能浏览、不能继续。 */
+/** 0.1.7 多了 `unknown`（迁移补出来的目录项）：只能浏览、不能继续；0.2.1 多了 `external`。 */
 export function decodeSubagentMode(mode: string | undefined): SubagentMode {
-  if (mode === 'continuable' || mode === 'one-shot') return mode;
+  if (mode === 'continuable' || mode === 'one-shot' || mode === 'external') return mode;
   return 'unknown';
 }
 

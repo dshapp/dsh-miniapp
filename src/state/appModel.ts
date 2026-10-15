@@ -23,6 +23,7 @@ import {
   goalClear,
   goalCreate,
   goalEdit,
+  goalGet,
   goalPause,
   goalResume,
   hostOpenPath,
@@ -128,13 +129,7 @@ export class AppModel {
   readonly searchStore: Store<SearchState> = searchStore;
   readonly refreshingStore = new Store<boolean>(false);
   readonly agentPresetsStore = new Store<AgentPresetEntry[]>([]);
-  /**
-   * 主机是否允许新会话选 Agent 模式（agentPresets/list 的 modeSelectionEnabled）。
-   *
-   * 关掉时新会话统一走部署默认模式，选择器不给入口；主机侧 agentPresets/select 并不校验
-   * 这个策略，所以不看它的话手机端摆出的选择器就真能绕过部署边界（对齐 Android
-   * PhoneModel.agentPresetPickerEnabled）。
-   */
+  /** 新建页给不给预设选择入口：0.2.1 删掉了部署开关，只看有没有可用（未损坏）的预设（对齐 Android）。 */
   readonly agentPresetPickerEnabledStore = new Store<boolean>(true);
   readonly lastErrorStore = new Store<string | undefined>(undefined);
   /**
@@ -982,7 +977,7 @@ export class AppModel {
   async toggleGoalPause(sessionId: SessionId): Promise<void> {
     const store = this.sessions.get(sessionId);
     const ref = store?.goalRef;
-    const action = store?.activeGoal === undefined ? undefined : goalPhaseAction(store.activeGoal.phase);
+    const action = store?.activeGoal === undefined ? undefined : goalPhaseAction(store.activeGoal.phase, store.goalDisarmed);
     // 只有主机真的接受的转移才发：blocked 上不给动作，避免 GOAL_INVALID_TRANSITION
     // （对齐 Android model/GoalPhaseAction.kt）。
     if (action === undefined || ref === undefined) return;
@@ -992,6 +987,19 @@ export class AppModel {
       else await goalPause(transport, sessionId, ref);
     } catch (error) {
       this.lastErrorStore.set(describe(error));
+    }
+    void this.refreshGoalActivation(sessionId);
+  }
+
+  /** 读当前目标的进程内 activation（0.2.1 `goals/get`）；老主机没有这个方法时静默不猜。 */
+  async refreshGoalActivation(sessionId: SessionId): Promise<void> {
+    const store = this.sessions.get(sessionId);
+    if (store === undefined || store.activeGoal === undefined) return;
+    try {
+      const activation = await goalGet(this.requireTransport(), sessionId);
+      if (this.sessions.get(sessionId) === store) store.setGoalActivation(activation);
+    } catch {
+      // 读失败保持上一份（或未知）：未知时不当成 disarmed。
     }
   }
 
@@ -1051,7 +1059,7 @@ export class AppModel {
     try {
       const value = await agentPresetList(this.requireTransport());
       this.agentPresetsStore.set(value.presets);
-      this.agentPresetPickerEnabledStore.set(value.modeSelectionEnabled);
+      this.agentPresetPickerEnabledStore.set(value.presets.some(preset => preset.broken === undefined || preset.broken.length === 0));
     } catch {
       // 预设目录失败不影响主流程；保持上一次的列表即可。
     }
@@ -1240,9 +1248,12 @@ export class AppModel {
 
   // —— 新建会话 ————————————————————————————————————————————
 
-  /** 新建会话：优先复用该工作区下已有的空白会话（与 Mac 同口径）。 */
-  async createSession(workspaceId?: WorkspaceId): Promise<SessionId | undefined> {
-    const workspace = workspaceId === undefined
+  /**
+   * 新建会话：显式新建总是新建（dsh 0.2.1 起与 web `startSession` 一致，Agent 按当前预设定义）；
+   * `reuseBlank` 只给新建页里切换工作区用，先复用该工作区下已有的空白会话（对齐 Mac f670941）。
+   */
+  async createSession(workspaceId?: WorkspaceId, reuseBlank = false): Promise<SessionId | undefined> {
+    const workspace = workspaceId === undefined || !reuseBlank
       ? undefined
       : workspaceStore.workspaces.find(item => item.workspaceId === workspaceId);
     if (workspace !== undefined) {

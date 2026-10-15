@@ -11,7 +11,7 @@
  * Android 上挂在 Compose mutableStateOf 上的三个可观察量收进一个 Store，
  * 页面照常用 useStore 订阅。所有 store 都靠构造参数注入，这里不 new 任何传输。
  */
-import { arr, bool, dbl, jget, str, type JsonElement, type JsonValue } from '../model/json';
+import { arr, bool, dbl, int, jget, str, type JsonElement, type JsonValue } from '../model/json';
 import {
   decodeControlFrame,
   decodeFollowFrame,
@@ -48,6 +48,7 @@ import type {
   SessionSummary,
   WorkspaceId,
   WorkspaceView,
+  GoalActivation,
 } from '../model/types';
 import type {
   MuxConnection,
@@ -119,6 +120,7 @@ export interface StreamSession {
   setJobs(frame: SessionJobsFrame): void;
   setApproval(approval: ApprovalRequested | undefined): void;
   setQuestion(question: QuestionRequested | undefined): void;
+  setGoalActivation(activation: GoalActivation | undefined): void;
 }
 
 /** 会话列表侧信道。 */
@@ -542,6 +544,18 @@ export class StreamCoordinator {
         const updatedAt = dbl(args[1]);
         if (updatedAt === undefined) return;
         this.deps.listStore.recordActivity(sessionId, updatedAt);
+        break;
+      }
+      // 0.2.1：目标的进程内 activation 变了（暂停、恢复、重启后 disarmed……），没有当前目标时 goal 缺省。
+      case 'goal/activation-changed': {
+        const sessionId = str(jget(args[0], 'sessionId'));
+        if (sessionId === undefined) return;
+        const goal = jget(args[0], 'goal');
+        const id = str(jget(goal, 'id'));
+        const revision = int(jget(goal, 'revision'));
+        this.deps.sessionLookup(sessionId)?.setGoalActivation(
+          id === undefined || revision === undefined ? undefined : { id, revision, activation: str(jget(goal, 'activation')) },
+        );
         break;
       }
       case 'api-session/error': {

@@ -287,15 +287,9 @@ export interface AgentPresetEntry {
   description?: string;
   broken?: string;
 }
-/**
- * agentPresets/list 的返回值。
- *
- * `modeSelectionEnabled` 是部署策略：关掉时新会话统一走部署默认模式，选择器不给入口。
- * 0.1.6 之前的主机不发布这个字段，缺省按允许处理（与 Android AgentPresetRoster 同一口径）。
- */
+/** agentPresets/list 的返回值（0.2.1 删掉了部署级的 modeSelectionEnabled）。 */
 export interface AgentPresetListValue {
   presets: AgentPresetEntry[];
-  modeSelectionEnabled: boolean;
 }
 
 /** 随 DSH 发布的预设 id（0.1.7 把 `code` 改名成 `ptc`）。 */
@@ -320,6 +314,11 @@ export interface SkillListValue { skills: SkillEntry[] }
 // 目标 ————————————————————————————————————————————————————————
 
 export interface GoalRef { id: string; revision: number }
+/**
+ * 目标的进程内续跑资格（0.2.1 `goals/get` 的 activation / `goal/activation-changed`），不进持久投影：
+ * 主机重启后恢复出来的 active 目标是 `disarmed`，不会自己续跑，界面按「已暂停」处理、给「恢复」。
+ */
+export interface GoalActivation extends GoalRef { activation?: string }
 export interface GoalCreateValue { ref: GoalRef }
 export interface GoalViewValue { ref: GoalRef }
 
@@ -352,8 +351,11 @@ export function jobIsObservable(job: JobView): boolean {
 
 // 子智能体 ————————————————————————————————————————————————————
 
-/** `unknown` 是 0.1.7 迁移补出来的目录项：只能浏览，不能继续对话。 */
-export type SubagentMode = 'one-shot' | 'continuable' | 'unknown';
+/**
+ * `unknown` 是 0.1.7 迁移补出来的目录项：只能浏览，不能继续对话。
+ * `external`（0.2.1）是外部执行器（Codex、Claude Code……）跑的任务：没有本地会话与转写，只列出、不能打开。
+ */
+export type SubagentMode = 'one-shot' | 'continuable' | 'external' | 'unknown';
 
 export interface SubagentListEntry {
   sessionId: SessionId;

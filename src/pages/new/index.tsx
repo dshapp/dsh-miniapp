@@ -47,10 +47,10 @@ export default function NewSessionPage(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const prepare = React.useCallback(async (id?: WorkspaceId) => {
+  const prepare = React.useCallback(async (id?: WorkspaceId, reuseBlank = false) => {
     setPreparing(true);
     setWorkspaceId(id);
-    const created = await model.createSession(id);
+    const created = await model.createSession(id, reuseBlank);
     setSessionId(created);
     setPreparing(false);
   }, [model]);
@@ -121,8 +121,8 @@ export default function NewSessionPage(): JSX.Element {
                   <Icon name='folder' className={styles.chipIcon} />
                   <Text className={styles.chipText}>{workspaceTitle}</Text>
                 </View>
-                {/* 主机关闭 Agent 模式选择时不给入口：新会话统一走部署默认模式
-                    （对齐 Android NewSessionScreen 的 agentPresetPickerEnabled）。 */}
+                {/* 没有可用（未损坏）的预设时不给入口（0.2.1 删掉了 modeSelectionEnabled，
+                    对齐 Android NewSessionScreen 的 agentPresetPickerEnabled）。 */}
                 {pickerEnabled ? (
                   <View className={styles.chip} onClick={() => setPickingPreset(true)}>
                     <Icon name='layers' className={styles.chipIcon} />
@@ -165,7 +165,8 @@ export default function NewSessionPage(): JSX.Element {
                   className={styles.sheetRow}
                   onClick={() => {
                     setPicking(false);
-                    if (item.workspaceId !== workspaceId) void prepare(item.workspaceId);
+                    // 换工作区可以接着用那个工作区里的空白会话；进页面时的显式新建则总是新建。
+                    if (item.workspaceId !== workspaceId) void prepare(item.workspaceId, true);
                   }}
                 >
                   <Text className={item.workspaceId === workspaceId ? styles.sheetTitle + ' ' + styles.selected : styles.sheetTitle}>

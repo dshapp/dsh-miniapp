@@ -304,6 +304,8 @@ function HiddenQuestionStrip(props: { question: QuestionRequested; onReopen: () 
 /** 目标条：有目标才出现，可暂停/恢复、编辑、清除（对齐 Android GoalBar）。 */
 function GoalBar(props: {
   goal: GoalProjection;
+  /** active 但主机不会自己续跑（0.2.1 activation = disarmed）：按已暂停画、给恢复。 */
+  disarmed: boolean;
   onTogglePause: () => void;
   onEdit: (objective: string) => void;
   onClear: () => void;
@@ -317,7 +319,7 @@ function GoalBar(props: {
   const menuItems = React.useMemo((): ActionMenuItem[] => {
     // 只映射主机真的接受的转移：pause 仅 active、resume 仅 paused；blocked 两个都不给
     // （对齐 Android GoalPhaseAction.kt）。给了也只会被主机回 GOAL_INVALID_TRANSITION。
-    const phaseAction = goalPhaseAction(goal.phase);
+    const phaseAction = goalPhaseAction(goal.phase, props.disarmed);
     const items: ActionMenuItem[] = [];
     if (phaseAction !== undefined) {
       items.push(
@@ -330,7 +332,7 @@ function GoalBar(props: {
     // 清空是破坏性动作，安卓单独染 error 色（ComposerBar.kt:760）。
     items.push({ key: 'clear', label: Strings.goalClear, icon: 'trash-2', danger: true });
     return items;
-  }, [goal.phase]);
+  }, [goal.phase, props.disarmed]);
 
   const selectMenu = (key: string): void => {
     setMenuAnchor(undefined);
@@ -341,7 +343,7 @@ function GoalBar(props: {
 
   return (
     <View className={styles.goalBar}>
-      <Icon name={goal.phase === 'paused' ? 'pause-circle' : 'flag'} className={styles.goalGlyph} />
+      <Icon name={goal.phase === 'paused' || props.disarmed ? 'pause-circle' : 'flag'} className={styles.goalGlyph} />
       <Text className={styles.goalText}>{goal.objective}</Text>
       <Icon
         name='ellipsis'
@@ -492,6 +494,13 @@ export function ComposerBar(props: ComposerBarProps): JSX.Element {
   const queue = useStore(store.queueStore);
   const todos = useStore(store.todosStore);
   const goal = useStore(store.goalStore);
+  const goalActivation = useStore(store.goalActivationStore);
+  void goalActivation;
+  const goalDisarmed = store.goalDisarmed;
+  // 目标换了版本、或会话开始/停止运行时重读 activation（对齐 web `createGoalActivationSource`）。
+  React.useEffect(() => {
+    if (goal?.phase === 'active') void model.refreshGoalActivation(sessionId);
+  }, [model, sessionId, goal?.id, goal?.revision, goal?.phase, running]);
   const presentedQuestion = useStore(store.presentedQuestionStore);
   const continuedQuestions = useStore(store.continuedQuestionsStore);
   // 弹层没在呈现问题、但还有可答的 continued 问题（都被收起了）：输入框上方给一条入口。
@@ -839,6 +848,7 @@ export function ComposerBar(props: ComposerBarProps): JSX.Element {
       {goal === undefined || goal.phase === 'complete' ? null : (
         <GoalBar
           goal={goal}
+          disarmed={goalDisarmed}
           onTogglePause={() => { void model.toggleGoalPause(sessionId); }}
           onEdit={objective => { void model.editGoal(objective, sessionId); }}
           onClear={() => { void model.clearGoal(sessionId); }}

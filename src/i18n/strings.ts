@@ -206,6 +206,7 @@ const TABLE = {
   forkHere: ['Fork from here', '从此处分支'],
   subagentComposer: ['Messages go to this subagent', '消息将发给这个子智能体'],
   subagentReadOnly: ['One-shot subagent — read only', '一次性子智能体，仅可查看'],
+  subagentModeExternal: ['External task', '外部任务'],
   backToParent: ['Back to parent session', '返回父会话'],
   pinned: ['Pinned', '置顶'],
   groupBy: ['Group by', '分组'],

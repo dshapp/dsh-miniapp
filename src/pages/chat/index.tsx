@@ -87,7 +87,10 @@ export default function ChatPage(): JSX.Element {
   const historyError = useStore(store.historyErrorStore);
   const queue = useStore(store.queueStore);
   const title = useStore(store.titleStore);
-  const cwd = useStore(store.cwdStore);
+  // 文件路径按会话当前的工作目录解析（0.2.1 workingDirectory 投影），没有才退回原始 cwd。
+  const workingDirectory = useStore(store.workingDirectoryStore);
+  const originalCwd = useStore(store.cwdStore);
+  const cwd = workingDirectory ?? originalCwd;
   const pendingApproval = useStore(store.pendingApprovalStore);
   // 弹层呈现的问题（0.2.0）：实时 waterfall 优先，否则是第一个没被收起的 continued 问题。
   const presentedQuestion = useStore(store.presentedQuestionStore);

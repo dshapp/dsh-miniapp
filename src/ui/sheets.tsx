@@ -278,7 +278,8 @@ export function SessionPanelSheet(props: {
   );
 
   const openSubagent = (entry: SubagentListEntry): void => {
-    if (!entry.isChild) return;
+    // 外部任务（0.2.1 `external`）没有本地会话可开。
+    if (!entry.isChild || entry.mode === 'external') return;
     const child = model.ensureSession(entry.sessionId);
     child.configureSubagent(
       { parentSessionId: props.sessionId, childSessionId: entry.sessionId, mode: entry.mode },
@@ -343,11 +344,15 @@ export function SessionPanelSheet(props: {
             <View key={entry.sessionId} className={styles.listRow} onClick={() => openSubagent(entry)}>
               {/* 图标放尾部（对齐 Android ListItem 的 trailing：运行中转圈、否则右箭头）。 */}
               <Text className={styles.rowTitle}>{entry.label ?? entry.sessionId}</Text>
-              <Icon
-                name={entry.running ? 'loader-circle' : 'chevron-right'}
-                spin={entry.running}
-                className={styles.rowTrailing}
-              />
+              {entry.mode === 'external' ? (
+                <Text className={styles.rowMeta}>{Strings.subagentModeExternal}</Text>
+              ) : (
+                <Icon
+                  name={entry.running ? 'loader-circle' : 'chevron-right'}
+                  spin={entry.running}
+                  className={styles.rowTrailing}
+                />
+              )}
             </View>
           ))}
         </View>

@@ -203,7 +203,12 @@ export function assistantStepIsVisible(step: AssistantStepData): boolean {
 
 // 工具调用 ————————————————————————————————————————————————————
 
-export interface ToolError { name: string; code: string }
+/** `reason`（0.2.1）是给人看的原始失败详情，不进模型上下文。 */
+export interface ToolError { name: string; code: string; reason?: string }
+
+function toolErrorText(error: ToolError): string {
+  return error.reason !== undefined && error.reason.length > 0 ? error.reason : `${error.name}: ${error.code}`;
+}
 
 export interface ToolResultData {
   seq: number;
@@ -433,7 +438,7 @@ export function toolResultText(result: ToolResultData): string {
     if (block.kind === 'text') parts.push(block.text);
     else parts.push(encodeJson(encodeContentBlock(block)));
   }
-  if (parts.length === 0 && result.error) parts.push(`${result.error.name}: ${result.error.code}`);
+  if (parts.length === 0 && result.error) parts.push(toolErrorText(result.error));
   return parts.join('\n');
 }
 
@@ -445,13 +450,13 @@ export function resultFirstLine(result: ToolResultData): string {
     }
     return _firstLine(encodeJson(encodeContentBlock(block)));
   }
-  if (result.error) return `${result.error.name}: ${result.error.code}`;
+  if (result.error) return _firstLine(toolErrorText(result.error));
   return '';
 }
 
 export function decodeToolError(value: JsonElement | undefined): ToolError | undefined {
   if (value === undefined || value === null || typeof value !== 'object' || Array.isArray(value)) return undefined;
-  return { name: str(value.name) ?? '', code: str(value.code) ?? '' };
+  return { name: str(value.name) ?? '', code: str(value.code) ?? '', reason: str(value.reason) };
 }
 
 export function rpcErrorMessage(error: RpcError | undefined): string {

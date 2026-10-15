@@ -68,6 +68,7 @@ import type {
   SessionId,
   SubagentAddress,
   ToolEventView,
+  GoalActivation,
 } from '../model/types';
 import {
   decodeInbox,
@@ -600,6 +601,13 @@ export class SessionStore {
   readonly blankStore = new Store<boolean>(true);
   readonly titleStore = new Store<string>('');
   readonly cwdStore = new Store<string | undefined>(undefined);
+  /**
+   * 会话当前的工作目录（0.2.1 `workingDirectory` 投影 / `working-directory/change` 事件）：
+   * 智能体切过目录后文件路径按它解析；没有就退回会话原始的 cwd。
+   */
+  readonly workingDirectoryStore = new Store<string | undefined>(undefined);
+  /** workingDirectory 最近一次落值的 seq：投影与事件谁新听谁的。 */
+  private workingDirectorySeq = -1;
   readonly agentPresetStore = new Store<string | undefined>(undefined);
   readonly pendingApprovalStore = new Store<ApprovalRequested | undefined>(undefined);
   readonly pendingQuestionStore = new Store<QuestionRequested | undefined>(undefined);
@@ -628,6 +636,8 @@ export class SessionStore {
   readonly referencedSessionsStore = new Store<Record<string, string>>({});
   readonly todosStore = new Store<TodoItem[]>([]);
   readonly goalStore = new Store<GoalProjection | undefined>(undefined);
+  /** 当前目标的进程内 activation（0.2.1）；读到之前是 undefined，不猜。 */
+  readonly goalActivationStore = new Store<GoalActivation | undefined>(undefined);
   /**
    * `plan` / `contextPressure` 的版本号。
    *
@@ -1087,6 +1097,21 @@ export class SessionStore {
     return goal === undefined || goal.phase === 'complete' ? undefined : goal;
   }
 
+  setGoalActivation(activation: GoalActivation | undefined): void {
+    this.goalActivationStore.set(activation);
+  }
+
+  /**
+   * 主机不会自己续跑的 active 目标（重启后恢复的那种）：按「已暂停」画、给「恢复」
+   * （web GoalBar 0.2.1，对齐 Mac `goalDisarmed`）。activation 必须对得上当前目标的 id 与版本。
+   */
+  get goalDisarmed(): boolean {
+    const goal = this.activeGoal;
+    const activation = this.goalActivationStore.get();
+    if (goal === undefined || goal.phase !== 'active' || activation === undefined) return false;
+    return activation.id === goal.id && activation.revision === goal.revision && activation.activation === 'disarmed';
+  }
+
   get goalRef(): { id: string; revision: number } | undefined {
     const goal = this.activeGoal;
     return goal === undefined ? undefined : { id: goal.id, revision: goal.revision };
@@ -1372,6 +1397,11 @@ export class SessionStore {
   private replayHistory(): void {
     this.contexts.clear();
     this.referencedSessionsStore.set({});
+    // 先落投影里的工作目录，重放的 working-directory/change 只有比它新才覆盖。
+    const directory = this.projections.get('workingDirectory');
+    this.workingDirectorySeq = -1;
+    this.workingDirectoryStore.set(undefined);
+    if (directory !== undefined) this.noteWorkingDirectory(str(directory[0]), directory[1]);
     this.durableCursor = -1;
     this.transientInGap = 0;
     this.presentedByTurn.clear();
@@ -1478,6 +1508,9 @@ export class SessionStore {
         if (title !== undefined) this.title = title;
         break;
       }
+      case 'working-directory/change':
+        this.noteWorkingDirectory(str(jget(event.data, 'cwd')), event.seq);
+        break;
       case 'deliverables/presented':
         this.applyPresented(event);
         break;
@@ -1714,7 +1747,8 @@ export class SessionStore {
           if (previous !== null && previous.kind === 'toolCall') {
             state.blocks[slot] = {
               kind: 'toolCall',
-              callId: previous.callId,
+              // block-start 开槽时还没有 id，第一条 delta 才带上（0.2.1）。
+              callId: previous.callId.length > 0 ? previous.callId : str(jget(chunk, 'id')) ?? '',
               name: str(jget(chunk, 'name')) ?? previous.name,
               argsRaw: previous.argsRaw + delta,
             };
@@ -1951,7 +1985,8 @@ export class SessionStore {
         : newToolChatData({
             callId: subCallId,
             name: str(data.name) ?? '',
-            argsRaw: '',
+            // 结算事件同样带着规范化后的 arguments：start 不在窗口里时也别丢参数。
+            argsRaw: data.arguments === undefined ? '' : encodeJson(data.arguments),
             turn: this.currentTurn,
             step: this.maxActiveStep(),
             startSeq: event.seq,
@@ -2290,7 +2325,10 @@ export class SessionStore {
   }
 
   private projectWorkflow(state: WorkflowState): WorkflowRunData {
-    const interrupted = state.stopReason === undefined && this.turnEndBoundaryAfter(state.anchorSeq) !== undefined;
+    // 工作流转后台后会比它的步骤活得久：普通的 turn/end 什么也证明不了，只有崩溃或分叉截断的轮次
+    // 才让没写 run-end 的工作流停下（web `turnAbandoned`，0.2.1）。
+    const reason = this.turnEndBoundaryAfter(state.anchorSeq)?.[2];
+    const interrupted = state.stopReason === undefined && (reason === 'interrupted' || reason === 'forked');
     const order: string[] = [];
     const groups = new Map<string, [phase: string | undefined, members: WorkflowRunMemberData[]]>();
     for (const member of state.members) {
@@ -2411,6 +2449,12 @@ export class SessionStore {
     }
   }
 
+  private noteWorkingDirectory(cwd: string | undefined, seq: number): void {
+    if (seq < this.workingDirectorySeq) return;
+    this.workingDirectorySeq = seq;
+    this.workingDirectoryStore.set(cwd);
+  }
+
   private decodeSingleProjection(key: string, value: JsonElement): void {
     // 没有专属 Store 的两个派生投影：落值就通知订阅方重新读 getter（见 derivedProjectionStore）。
     if (key === 'plan' || key === 'contextPressure') {
@@ -2425,6 +2469,9 @@ export class SessionStore {
         if (title !== undefined && title.length > 0) this.title = title;
         break;
       }
+      case 'workingDirectory':
+        this.noteWorkingDirectory(str(value), this.projections.get(key)?.[1] ?? -1);
+        break;
       case 'sessionListMetadata': {
         const blank = bool(jget(value, 'blank'));
         if (blank !== undefined) this.blank = blank;

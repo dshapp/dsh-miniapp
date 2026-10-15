@@ -523,8 +523,9 @@ export function splitRecommended(raw: string): RecommendedOptionLabel {
  */
 export type GoalPhaseAction = 'pause' | 'resume';
 
-export function goalPhaseAction(phase: string): GoalPhaseAction | undefined {
-  if (phase === 'active') return 'pause';
+export function goalPhaseAction(phase: string, disarmed = false): GoalPhaseAction | undefined {
+  // 0.2.1：主机不会自己续跑的 active 目标（disarmed）只能「恢复」。
+  if (phase === 'active') return disarmed ? 'resume' : 'pause';
   if (phase === 'paused') return 'resume';
   return undefined;
 }

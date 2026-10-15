@@ -88,6 +88,8 @@ scripts/build-icons.mjs                从 lucide 拉取图标、生成图标表
 - [docs/DSH-0.2.0-ADAPTATION.md](docs/DSH-0.2.0-ADAPTATION.md)：跟进 dsh 0.2.0-rc.2 的 web 新行为
   （照安卓 `017cbf1` / Mac `c710a29`）：搜索只认会话自己的标题、模型搜索、限时提问
   （`userQuestions/attachWait` / `userQuestions/answer`）、question-reply 节点、时长单元制、「自动化任务」触发卡。
+- [docs/DSH-0.2.1-ADAPTATION.md](docs/DSH-0.2.1-ADAPTATION.md)：跟进 dsh 0.2.1-alpha.2（照安卓 `2b296b4` / Mac `f670941`）：
+  external 子智能体、显式新建不复用空白会话、`workingDirectory` 投影、目标 activation、PTC `error.reason` 等。
 
 **改动前请先跑 `npm test`**：`scripts/test/` 下的用例逐条移植自安卓的单元测试，
 是两端行为口径的回归闸（读数格式化、文件链接、图片协议、0.1.6 / 0.1.7 协议解码、未读红点、
