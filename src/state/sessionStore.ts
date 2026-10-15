@@ -992,7 +992,7 @@ export class SessionStore {
   private readonly inboxClaims = new Map<string, InboxClaim>();
   /** 来源是人类的 inbox 消息 id，认领时据此判断这一批里有没有人类。 */
   private readonly humanInboxIds = new Set<MessageId>();
-  private readonly turnEndBoundaries: Array<[seq: number, time: number]> = [];
+  private readonly turnEndBoundaries: Array<[seq: number, time: number, reason?: string]> = [];
   private readonly presentedByTurn = new Map<number, PresentedFile[]>();
   /** `permissions` 投影（0.1.6 只带 currentValue，0.1.5 还内联候选）。 */
   private permissionProjection: PermissionSelectValue | undefined;
@@ -1401,7 +1401,7 @@ export class SessionStore {
   private noteTurnBoundary(event: SessionEvent): void {
     if (event.type !== 'turn/end') return;
     if (this.turnEndBoundaries.some(entry => entry[0] === event.seq)) return;
-    this.turnEndBoundaries.push([event.seq, event.time]);
+    this.turnEndBoundaries.push([event.seq, event.time, str(jget(jget(event.data, 'reason'), 'kind'))]);
     this.turnEndBoundaries.sort((a, b) => a[0] - b[0]);
   }
 
@@ -2331,7 +2331,7 @@ export class SessionStore {
     };
   }
 
-  private turnEndBoundaryAfter(anchorSeq: number): [number, number] | undefined {
+  private turnEndBoundaryAfter(anchorSeq: number): [number, number, string?] | undefined {
     return this.turnEndBoundaries.find(entry => entry[0] > anchorSeq);
   }
 
@@ -2659,12 +2659,17 @@ export class SessionStore {
       messagesByStep: Map<number, number>;
       toolCalls: number;
       subagents: number;
+      /** 轮中插话（web `hasInterleavedInput`）：这一轮保持展开。 */
+      interleaved: boolean;
     }
 
     const byTurn = new Map<number, Accumulator>();
     const order: number[] = [];
     let openTurn: number | undefined;
-    const pendingAnchors: number[] = [];
+    // 本轮第一个带轮次号的行之前见到的无轮次行；command 单独标出，turn/start 之前输入的命令不算过程。
+    const pendingAnchors: Array<{ anchor: number; command: boolean }> = [];
+    // 输入到来时已经有行的那一轮：同一轮随后又产出过程证据，这条输入就是轮中插话。
+    let turnBeforeInput: number | undefined;
     const accumulatorFor = (turn: number): Accumulator => {
       let acc = byTurn.get(turn);
       if (acc === undefined) {
@@ -2676,6 +2681,7 @@ export class SessionStore {
           messagesByStep: new Map<number, number>(),
           toolCalls: 0,
           subagents: 0,
+          interleaved: false,
         };
         byTurn.set(turn, acc);
         order.push(turn);
@@ -2686,20 +2692,32 @@ export class SessionStore {
     for (const node of rows) {
       // 用户、插队与轮次触发都是一轮的开头，之后的行不能再算给前一轮。
       if (node.kind === 'user' || node.kind === 'steering' || node.kind === 'turnTrigger') {
+        if (openTurn !== undefined) turnBeforeInput = openTurn;
         openTurn = undefined;
         pendingAnchors.length = 0;
         continue;
       }
       const turnNumber = chatNodeTurnNumber(node);
-      if (turnNumber !== undefined) openTurn = turnNumber;
+      if (turnNumber !== undefined) {
+        if (turnNumber === turnBeforeInput && (node.kind === 'assistant' || node.kind === 'tool')) {
+          const steered = byTurn.get(turnNumber);
+          if (steered !== undefined) steered.interleaved = true;
+        }
+        turnBeforeInput = undefined;
+        openTurn = turnNumber;
+      }
       const turn = openTurn;
       if (turn === undefined) {
-        pendingAnchors.push(chatNodeAnchorSeq(node));
+        pendingAnchors.push({ anchor: chatNodeAnchorSeq(node), command: node.kind === 'command' });
         continue;
       }
       const acc = accumulatorFor(turn);
       if (pendingAnchors.length > 0) {
-        acc.processAnchors.push(...pendingAnchors);
+        // turn/start 之前输入的命令（如 /goal）是读者自己的输入，不能把折叠起点拉到它上面（web 从 turn/start 起折）。
+        const start = this.turnStartSeqs.get(turn);
+        for (const pending of pendingAnchors) {
+          if (!pending.command || start === undefined || pending.anchor >= start) acc.processAnchors.push(pending.anchor);
+        }
         pendingAnchors.length = 0;
       }
       switch (node.kind) {
@@ -2740,22 +2758,27 @@ export class SessionStore {
       if (acc === undefined) continue;
       const lastAnchor = acc.lastAnchor;
       if (lastAnchor === undefined) continue;
-      if (!acc.lastIsAnswer) continue;
-      if (this.turnEndBoundaryAfter(Math.trunc(lastAnchor)) === undefined) continue;
-      const externalCandidates = acc.processAnchors.filter(anchor => anchor < lastAnchor);
+      // 只有已关闭、正常结束（非停止/失败）且没有轮中插话的轮次才折叠（web `canCollapse`）。
+      const end = this.turnEndBoundaryAfter(Math.trunc(lastAnchor));
+      if (end === undefined || end[2] === 'aborted' || end[2] === 'error' || acc.interleaved) continue;
+      const answered = acc.lastIsAnswer;
+      // 有最终回答：收起回答之前的过程；没有：整轮都是过程，收到 turn/end 为止，也没有内联 reasoning 要藏。
+      const externalCandidates = answered ? acc.processAnchors.filter(anchor => anchor < lastAnchor) : acc.processAnchors;
       const external = externalCandidates.length > 0 ? Math.min(...externalCandidates) : undefined;
-      if (external === undefined && !acc.lastReasoning) continue;
+      if (answered && external === undefined && !acc.lastReasoning) continue;
       let messages = 0;
-      for (const [step, count] of Array.from(acc.messagesByStep.entries())) if (step < acc.lastStep) messages += count;
+      for (const [step, count] of Array.from(acc.messagesByStep.entries())) {
+        if (!answered || step < acc.lastStep) messages += count;
+      }
       this.turnProcessSpecs.set(turn + ':' + acc.lastStep, {
         turn,
-        processStartSeq: external ?? lastAnchor,
-        answerAnchorSeq: lastAnchor,
+        processStartSeq: Math.min(external ?? lastAnchor, lastAnchor),
+        foldEndSeq: answered ? lastAnchor : end[0] + 0.5,
         answerStep: acc.lastStep,
         messageCount: messages,
         toolCallCount: acc.toolCalls,
         subagentCount: acc.subagents,
-        inlineReasoning: acc.lastReasoning,
+        inlineReasoning: answered && acc.lastReasoning,
       });
     }
   }

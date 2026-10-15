@@ -111,7 +111,11 @@ export interface TurnProcessKey { turn: number; answerStep: number }
 export interface TurnProcessSpec {
   turn: number;
   processStartSeq: number;
-  answerAnchorSeq: number;
+  /**
+   * 折叠区间的开区间终点：有最终回答时是回答的锚点；没有（如以工具调用收尾）时整轮都是过程，
+   * 一直收到 turn/end 之后（web `answerAnchorSeq === null`）。
+   */
+  foldEndSeq: number;
   answerStep: number;
   messageCount: number;
   toolCallCount: number;
@@ -124,7 +128,7 @@ export function turnProcessKey(spec: TurnProcessSpec): string {
 }
 
 export function turnProcessCovers(spec: TurnProcessSpec, anchor: number): boolean {
-  return anchor >= spec.processStartSeq && anchor < spec.answerAnchorSeq;
+  return anchor >= spec.processStartSeq && anchor < spec.foldEndSeq;
 }
 
 // 助手步骤 ————————————————————————————————————————————————————

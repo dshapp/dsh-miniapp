@@ -138,3 +138,46 @@ test('轮次被从中间截断时不给残缺读数', () => {
   assert.equal(tail?.usage, undefined);
   assert.equal(tail?.runMs, undefined);
 });
+
+// —— 轮次过程折叠的边界（对照 Mac 2710859 / efc4175，web `canCollapse`）————————
+
+function foldTranscript(store: SessionStore) {
+  let seq = 0;
+  const put = (type: string, data: unknown) => store.apply(ev(type, ++seq, data), undefined);
+  const user = (id: string) => put('user/message', { id, content: [{ type: 'text', text: id }], source: { kind: 'user' } });
+  const reply = (turn: number, step: number, content: unknown[]) =>
+    put('assistant/message', { turn, step, message: { id: 'a' + turn + step, content } });
+  const toolStep = (turn: number, step: number) => {
+    const callId = 'c' + turn + step;
+    reply(turn, step, [{ type: 'tool-call', id: callId, name: 'bash', arguments: '{}' }]);
+    put('tool/call', { callId, name: 'bash', arguments: '{}', turn, step });
+  };
+  const text = [{ type: 'text', text: 'done' }];
+  // 第 1 轮：工具后给最终回答 → 折到回答之前。
+  user('u1'); put('turn/start', { turn: 1 }); toolStep(1, 1); reply(1, 2, text); put('turn/end', { turn: 1, reason: { kind: 'completed' } });
+  // 第 2 轮：以工具调用收尾 → 整轮折到 turn/end。
+  user('u2'); put('turn/start', { turn: 2 }); toolStep(2, 1); put('turn/end', { turn: 2, reason: { kind: 'completed' } });
+  // 第 3 轮：轮中插话 → 不折叠。
+  user('u3'); put('turn/start', { turn: 3 }); toolStep(3, 1);
+  put('agent/inbox/spliced', { target: 'next-step', start: 0, removedCount: 0, inserted: [{ id: 's3', source: { kind: 'user' } }] });
+  put('agent/inbox/spliced', { target: 'next-step', start: 0, removedCount: 1, inserted: [] });
+  user('s3'); reply(3, 2, text); put('turn/end', { turn: 3, reason: { kind: 'completed' } });
+  // 第 4 轮：turn/start 之前输入的 /goal 留在折叠头上方。
+  user('u4'); put('command/run', { commandId: 'k4', name: 'goal' }); put('turn/start', { turn: 4 });
+  toolStep(4, 1); reply(4, 2, text); put('turn/end', { turn: 4, reason: { kind: 'completed' } });
+}
+
+test('轮次折叠：插话轮不折、无最终回答整轮折、轮前命令不折进过程', () => {
+  const store = new SessionStore('s1');
+  store.hasMore = false;
+  foldTranscript(store);
+  const kinds = store.nodes
+    .filter(node => node.kind !== 'turnTail')
+    .map(node => (node.kind === 'user' || node.kind === 'steering' ? node.messageId : node.kind));
+  assert.deepEqual(kinds, [
+    'u1', 'turnProcess', 'assistant',
+    'u2', 'turnProcess',
+    'u3', 'assistant', 'tool', 's3', 'assistant',
+    'u4', 'command', 'turnProcess', 'assistant',
+  ]);
+});
