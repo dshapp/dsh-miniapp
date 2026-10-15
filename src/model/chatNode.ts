@@ -78,6 +78,24 @@ export function plainText(content: ContentBlock[]): string {
     .join('\n');
 }
 
+/** 用户消息 `file` 块里的上传文件引用：{type:'file', attachment:{attachmentId, name, bytes}}。 */
+export interface FileAttachmentRef { attachmentId: string; name: string; bytes: number }
+
+/** 本端把 file 块留作 other（原样回写），这里挑出解得出的文件引用（对齐 Mac `fileAttachmentRefs`）。 */
+export function fileAttachmentRefs(content: ContentBlock[]): FileAttachmentRef[] {
+  const refs: FileAttachmentRef[] = [];
+  for (const block of content) {
+    if (block.kind !== 'other' || str(jget(block.raw, 'type')) !== 'file') continue;
+    const attachment = jget(block.raw, 'attachment');
+    const attachmentId = str(jget(attachment, 'attachmentId'));
+    const name = str(jget(attachment, 'name'));
+    const bytes = jget(attachment, 'bytes');
+    if (attachmentId === undefined || name === undefined || typeof bytes !== 'number') continue;
+    refs.push({ attachmentId, name, bytes });
+  }
+  return refs;
+}
+
 // 助手块 ——————————————————————————————————————————————————————
 
 export type AssistantBlock =

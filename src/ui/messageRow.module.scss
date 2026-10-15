@@ -41,6 +41,47 @@
   white-space: pre-wrap;
 }
 
+/* 用户消息的文件附件卡片（对齐 Mac `MessageFileCard` / web `.fileCard`）：图标 + 文件名 + 扩展名与大小。 */
+.fileCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 240px;
+  max-width: 82%;
+  min-height: 56px;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border-radius: var(--dsh-radius-bubble);
+  border: 1px solid var(--dsh-color-border);
+}
+
+.fileCardGlyph {
+  flex-shrink: 0;
+  font-size: 24px;
+  color: var(--dsh-color-text-sub);
+}
+
+.fileCardText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fileCardName {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--dsh-color-text);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.fileCardMeta {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsh-color-text-faint);
+}
+
 /* 点击气泡后浮出的「复制」小泡，与正文同侧、贴在气泡下方。 */
 .copyMenu {
   margin-top: 4px;

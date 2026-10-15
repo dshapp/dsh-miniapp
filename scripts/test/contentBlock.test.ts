@@ -6,7 +6,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decodeContentBlock, encodeContentBlock } from '../../src/model/chatNode';
+import { decodeContentBlock, encodeContentBlock, fileAttachmentRefs } from '../../src/model/chatNode';
 import type { ContentBlock } from '../../src/model/chatNode';
 
 test('tool-result 保留嵌套内容', () => {
@@ -43,4 +43,11 @@ test('普通块照常来回', () => {
   for (const block of cases) {
     assert.deepEqual(decodeContentBlock(encodeContentBlock(block)), block);
   }
+});
+
+test('用户消息的 file 块解出文件卡片引用，原样回写', () => {
+  const raw = { type: 'file', attachment: { attachmentId: 'att-1', name: 'report.pdf', bytes: 2048 } };
+  const content = [decodeContentBlock(raw), decodeContentBlock({ type: 'file' })];
+  assert.deepEqual(fileAttachmentRefs(content), [{ attachmentId: 'att-1', name: 'report.pdf', bytes: 2048 }]);
+  assert.deepEqual(encodeContentBlock(content[0]), raw);
 });

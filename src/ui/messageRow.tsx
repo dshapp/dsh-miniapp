@@ -13,6 +13,7 @@ const EMPTY_EXPANDED_STORE = new Store<boolean>(false);
 import type { JsonValue } from '../model/json';
 import {
   chatNodeRendersRow,
+  fileAttachmentRefs,
   plainText,
 } from '../model/chatNode';
 import type {
@@ -20,6 +21,7 @@ import type {
   AssistantStepData,
   ChatNode,
   ContentBlock,
+  FileAttachmentRef,
   ToolChangeNode,
   TurnProcessSpec,
   TurnTriggerNode,
@@ -32,6 +34,7 @@ import {
   cacheHitPercent,
   clockTime,
   compactTokenCount,
+  formatBytes,
   formatDuration,
   formatLatencySeconds,
   formatTokensPerSecond,
@@ -94,6 +97,37 @@ export interface MessageRowProps {
   loadTurnChangesDiff?: (address: TurnChangesAddress, index: number) => Promise<ChangedFileDiff | undefined>;
 }
 
+/** 文件名过长时截中间、保住扩展名（对齐 Mac 的 truncationMode(.middle)）。 */
+function middleTruncate(name: string, max = 26): string {
+  if (name.length <= max) return name;
+  const tail = Math.ceil((max - 1) / 2);
+  return name.slice(0, max - 1 - tail) + '…' + name.slice(name.length - tail);
+}
+
+function fileTypeIcon(ext: string): LucideIconName {
+  if (/^(png|jpe?g|gif|webp|bmp|svg|heic)$/.test(ext)) return 'image';
+  if (/^(zip|tar|gz|tgz|bz2|xz|7z|rar)$/.test(ext)) return 'archive';
+  if (/^(js|jsx|ts|tsx|mjs|cjs|py|rb|go|rs|java|kt|swift|c|h|cc|cpp|hpp|cs|php|sh|json|ya?ml|toml|xml|html?|css|scss|sql)$/.test(ext)) return 'code';
+  return 'file-text';
+}
+
+/** 用户消息里的一个上传文件（对齐 Mac `MessageFileCard`）：文件类型图标、文件名、扩展名大写 + 大小。 */
+function MessageFileCard(props: { file: FileAttachmentRef }): JSX.Element {
+  const { name, bytes } = props.file;
+  const dot = name.lastIndexOf('.');
+  const ext = dot > 0 ? name.slice(dot + 1) : '';
+  const meta = [ext.toUpperCase(), formatBytes(bytes)].filter(part => part.length > 0).join(' ');
+  return (
+    <View className={styles.fileCard}>
+      <Icon name={fileTypeIcon(ext.toLowerCase())} className={styles.fileCardGlyph} />
+      <View className={styles.fileCardText}>
+        <Text className={styles.fileCardName}>{middleTruncate(name)}</Text>
+        <Text className={styles.fileCardMeta}>{meta}</Text>
+      </View>
+    </View>
+  );
+}
+
 /**
  * 用户气泡。
  *
@@ -117,6 +151,7 @@ function UserBubble(props: {
     .filter((block): block is Extract<ContentBlock, { kind: 'image' }> => block.kind === 'image')
     .map((block) => block.attachment)
     .filter((attachment): attachment is JsonValue => attachment !== undefined && decodeAttachmentRef(attachment) !== undefined);
+  const files = fileAttachmentRefs(content);
   // 点一下气泡弹「复制」；长按仍交给系统文本选择（外层 Text 的 selectable/user-select）。
   const [copyMenu, setCopyMenu] = useState(false);
   const copyText = async () => {
@@ -130,6 +165,10 @@ function UserBubble(props: {
   return (
     <View className={styles.userRow}>
       <ImageGallery refs={images} sessionId={sessionId} resolveImage={resolveImage} onOpenImage={onOpenImage} alignEnd />
+      {files.map((file, index) => (
+        <MessageFileCard key={file.attachmentId + ':' + index} file={file} />
+      ))}
+      {/* 只发图片/文件时没有正文，不画空气泡。 */}
       {text.length === 0 ? null : (
         <View className={styles.bubbleWrap}>
           <View
