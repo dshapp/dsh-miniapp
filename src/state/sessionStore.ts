@@ -608,6 +608,8 @@ export class SessionStore {
   readonly workingDirectoryStore = new Store<string | undefined>(undefined);
   /** workingDirectory 最近一次落值的 seq：投影与事件谁新听谁的。 */
   private workingDirectorySeq = -1;
+  /** 窗口里按顺序重放到此刻为止最近的一条 working-directory/change（seq, cwd）。 */
+  private replayedDirectory: [number, string | undefined] | undefined;
   readonly agentPresetStore = new Store<string | undefined>(undefined);
   readonly pendingApprovalStore = new Store<ApprovalRequested | undefined>(undefined);
   readonly pendingQuestionStore = new Store<QuestionRequested | undefined>(undefined);
@@ -1398,6 +1400,7 @@ export class SessionStore {
     this.contexts.clear();
     this.referencedSessionsStore.set({});
     // 先落投影里的工作目录，重放的 working-directory/change 只有比它新才覆盖。
+    this.replayedDirectory = undefined;
     const directory = this.projections.get('workingDirectory');
     this.workingDirectorySeq = -1;
     this.workingDirectoryStore.set(undefined);
@@ -1509,6 +1512,7 @@ export class SessionStore {
         break;
       }
       case 'working-directory/change':
+        this.replayedDirectory = [event.seq, str(jget(event.data, 'cwd'))];
         this.noteWorkingDirectory(str(jget(event.data, 'cwd')), event.seq);
         break;
       case 'deliverables/presented':
@@ -1873,6 +1877,7 @@ export class SessionStore {
       time: event.time,
       callView: view !== undefined && view.for === 'call' ? view.view : undefined,
     });
+    tool.cwd = this.directoryAt(event.seq);
     this.contexts.set('tool-call:' + callId, { kind: 'tool', data: tool });
   }
 
@@ -1968,6 +1973,7 @@ export class SessionStore {
       rootCallId,
       parentCallId,
     });
+    tool.cwd = root?.cwd ?? this.directoryAt(event.seq);
     this.contexts.set('tool-call:' + subCallId, { kind: 'tool', data: tool });
   }
 
@@ -1994,6 +2000,7 @@ export class SessionStore {
             rootCallId: str(data.rootCallId),
             parentCallId: str(data.parentCallId),
           });
+    if (existing === undefined) child.cwd = this.directoryAt(event.seq);
     child.result = {
       seq: event.seq,
       time: event.time,
@@ -2452,6 +2459,20 @@ export class SessionStore {
     }
   }
 
+  /**
+   * seq 那一刻的工作目录（对齐 Android `directoryAtSeq`）：新一刀的投影不能改写历史调用的路径，
+   * 所以只认不晚于这个 seq 的目录变更事件或投影版本，取其中较新的那个；都没有就交给会话级 cwd。
+   */
+  private directoryAt(seq: number): string | undefined {
+    let projected: [number, string | undefined] | undefined;
+    for (const [version, value] of Array.from(this.projectionHistory.get('workingDirectory')?.entries() ?? [])) {
+      if (version <= seq && (projected === undefined || version > projected[0])) projected = [version, str(value)];
+    }
+    const change = this.replayedDirectory !== undefined && this.replayedDirectory[0] <= seq ? this.replayedDirectory : undefined;
+    if (change !== undefined && (projected === undefined || change[0] >= projected[0])) return change[1];
+    return projected?.[1];
+  }
+
   private noteWorkingDirectory(cwd: string | undefined, seq: number): void {
     if (seq < this.workingDirectorySeq) return;
     this.workingDirectorySeq = seq;
@@ -2582,6 +2603,7 @@ export class SessionStore {
       });
       tool.preparing = true;
       tool.displaySeq = anchor + (index + 1) * 1e-6;
+      tool.cwd = this.directoryAt(Math.trunc(anchor));
       out.push(tool);
     });
     return out;

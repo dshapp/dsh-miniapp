@@ -191,8 +191,9 @@ function contentKilobytes(args: ArgsMap | undefined): number | undefined {
   return values.length === 0 ? undefined : Math.ceil(values.reduce((sum, value) => sum + value.length, 0) / 1024);
 }
 
-export function toolRowModel(data: ToolChatData, cwd: string | undefined): ToolRowModel {
+export function toolRowModel(data: ToolChatData, sessionCwd: string | undefined): ToolRowModel {
   const variant = classifyTool(data.name);
+  const cwd = data.cwd ?? sessionCwd;
   if (data.preparing === true) {
     const preview = preparingArguments(data.name, data.argsRaw);
     return {

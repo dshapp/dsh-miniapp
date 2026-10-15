@@ -79,3 +79,13 @@ test('轮次页脚：停止/失败只交代结局，成功轮（哪怕以工具�
   assert.equal(tail('error')?.outcome, 'failed');
   assert.deepEqual([tail('completed')?.outcome, tail('completed')?.runMs], ['completed', 3999]);
 });
+
+test('工具调用按派发时的工作目录解析路径，之后换目录不改写历史行', () => {
+  const store = new SessionStore('s1');
+  store.apply(ev('working-directory/change', 1, { cwd: '/repo' }), undefined);
+  store.apply(ev('tool/call', 2, { callId: 'c1', name: 'read', arguments: '{"file_path":"/repo/a.ts"}', turn: 1, step: 1 }), undefined);
+  store.apply(ev('working-directory/change', 3, { cwd: '/repo/pkg' }), undefined);
+  store.apply(ev('tool/call', 4, { callId: 'c2', name: 'read', arguments: '{"file_path":"/repo/pkg/b.ts"}', turn: 1, step: 1 }), undefined);
+  const rows = store.nodes.flatMap(node => (node.kind === 'tool' ? [toolRowModel(node.data, store.workingDirectoryStore.get()).summary] : []));
+  assert.deepEqual(rows, ['a.ts', 'b.ts']);
+});
