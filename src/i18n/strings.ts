@@ -496,6 +496,9 @@ const TABLE = {
   hostCredentialNamed: ['provider ref', 'provider 指定引用'],
   hostCredentialAccount: ['Account / provider-managed authentication', '账号或 provider 自有认证'],
   hostPresetsTitle: ['Agent presets · YAML (read-only)', 'Agent 预设 · YAML（只读）'],
+  chatNotPaired: ['Not paired with a Desktop yet', '还没有与电脑配对'],
+  chatNotPairedHint: ['Go back and pair first; this session cannot load until then.', '请返回先完成配对，之后才能加载这个会话。'],
+  goBack: ['Back', '返回'],
 } as const satisfies Record<string, Entry>;
 
 export type StringKey = keyof typeof TABLE;

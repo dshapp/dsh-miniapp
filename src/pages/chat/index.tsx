@@ -153,8 +153,15 @@ export default function ChatPage(): JSX.Element {
   }, [model]);
 
   // 进页 open、退页 close。标题不再写进微信导航栏：顶栏已经是我们自己画的。
+  // 没有配对资料时 open 会同步抛错（建不了传输）：吞掉它改画提示，否则 effect 里的异常会让整页不再更新。
+  const [openError, setOpenError] = React.useState<string | undefined>(undefined);
   React.useEffect(() => {
-    model.open(sessionId);
+    try {
+      model.open(sessionId);
+      setOpenError(undefined);
+    } catch (error) {
+      setOpenError(error instanceof Error ? error.message : String(error));
+    }
     return () => {
       model.close(sessionId);
     };
@@ -504,7 +511,7 @@ export default function ChatPage(): JSX.Element {
   const emptyByFind = finding && findQuery.trim().length > 0 && visibleNodes.length === 0 && pendingSteering.length === 0;
   const transcriptEmpty = nodes.length === 0 && pendingSteering.length === 0;
   const showEmptyChat = transcriptEmpty && historyError === undefined && historyLoaded && !loadingHistory;
-  const showHistoryLoading = transcriptEmpty && historyError === undefined && !showEmptyChat;
+  const showHistoryLoading = transcriptEmpty && historyError === undefined && !showEmptyChat && openError === undefined;
 
   return (
     <PageShell>
@@ -641,8 +648,17 @@ export default function ChatPage(): JSX.Element {
                 <Text className={styles.retry} onClick={() => { void store.retryHistory(); }}>{Strings.retry}</Text>
               </View>
             ) : null}
-            {showEmptyChat ? (
+            {showEmptyChat && openError === undefined ? (
               <EmptyState name='message-circle' title={Strings.emptyChat} description={Strings.emptyChatHint} />
+            ) : null}
+            {openError !== undefined && transcriptEmpty ? (
+              <EmptyState
+                name='cloud-off'
+                title={Strings.chatNotPaired}
+                description={Strings.chatNotPairedHint}
+                actionText={Strings.goBack}
+                onAction={() => back()}
+              />
             ) : null}
             </View>
           </ScrollView>
