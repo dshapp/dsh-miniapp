@@ -168,8 +168,8 @@ function foldTranscript(store: SessionStore) {
 }
 
 test('轮次折叠：插话轮不折、无最终回答整轮折、轮前命令不折进过程', () => {
+  // 新建的 store 默认 hasMore=true：首屏还有更早历史时也要照常折叠。
   const store = new SessionStore('s1');
-  store.hasMore = false;
   foldTranscript(store);
   const kinds = store.nodes
     .filter(node => node.kind !== 'turnTail')

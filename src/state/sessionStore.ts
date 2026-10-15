@@ -2648,7 +2648,8 @@ export class SessionStore {
 
   private rebuildTurnProcessSpecs(rows: ChatNode[]): void {
     this.turnProcessSpecs.clear();
-    if (this.hasMore) return;
+    // 不看 hasMore：已载入 turn/end 的局部历史轮次同样可折（web `processWindowReady`、Mac/安卓都不设此门槛），
+    // 否则首屏只要还有更早历史就整屏不折叠。
 
     interface Accumulator {
       processAnchors: number[];
