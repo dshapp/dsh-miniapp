@@ -2558,9 +2558,36 @@ export class SessionStore {
 
   // —— 节点物化 ————————————————————————————————————————————
 
+  /**
+   * 还在流式生成的步骤里正在写参数的工具调用（web `preparing` 阶段，0.2.1，对齐 Mac `preparingTools`）：
+   * 每条紧跟在它的步骤之后、按块序排；同 id 的 tool/call 一落就让位给正式行。
+   */
+  private preparingTools(state: AssistantStepData): ToolChatData[] {
+    if (state.status !== 'running') return [];
+    const anchor = chatNodeAnchorSeq({ kind: 'assistant', step: state });
+    const out: ToolChatData[] = [];
+    state.blocks.forEach((block, index) => {
+      if (block === null || block.kind !== 'toolCall' || block.callId.length === 0 || block.name.length === 0) return;
+      const tool = newToolChatData({
+        callId: block.callId,
+        name: block.name,
+        argsRaw: block.argsRaw,
+        turn: state.turn,
+        step: state.step,
+        startSeq: Math.trunc(anchor),
+        time: state.time,
+      });
+      tool.preparing = true;
+      tool.displaySeq = anchor + (index + 1) * 1e-6;
+      out.push(tool);
+    });
+    return out;
+  }
+
   private rebuildNodes(): void {
     const built: ChatNode[] = [];
     const tools = new Map<CallId, ToolChatData>();
+    const preparing: ToolChatData[] = [];
     for (const ctx of Array.from(this.contexts.values())) {
       switch (ctx.kind) {
         case 'finalized':
@@ -2568,6 +2595,7 @@ export class SessionStore {
           break;
         case 'assistant':
           if (assistantStepIsVisible(ctx.state)) built.push({ kind: 'assistant', step: ctx.state });
+          preparing.push(...this.preparingTools(ctx.state));
           break;
         case 'tool': {
           const tool = cloneToolData(ctx.data);
@@ -2651,6 +2679,8 @@ export class SessionStore {
         built.push({ kind: 'tool', data: nested(tool, new Set<CallId>(), 0) });
       }
     }
+    // 流式写参数的调用先占一行，tool/call 落定后由正式行接替。
+    for (const tool of preparing) if (!tools.has(tool.callId)) built.push({ kind: 'tool', data: tool });
 
     let keyed: KeyedNode[] = built
       .map(node => ({ anchor: chatNodeAnchorSeq(node), id: chatNodeId(node), node }))

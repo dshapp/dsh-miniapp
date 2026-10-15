@@ -233,6 +233,10 @@ export interface ToolChatData {
   result?: ToolResultData;
   callView?: JsonElement;
   subCalls: ToolChatData[];
+  /** 模型还在流式生成这次调用的参数，tool/call 还没落（web `preparing` 阶段，0.2.1）。 */
+  preparing?: boolean;
+  /** 准备中的行的位置：紧跟在它所在的助手步骤之后，按块序排。 */
+  displaySeq?: number;
 }
 
 // 工作流 ——————————————————————————————————————————————————————
@@ -377,7 +381,7 @@ export function chatNodeAnchorSeq(node: ChatNode): number {
     case 'steering': return node.seq;
     case 'turnTrigger': return node.data.seq;
     case 'assistant': return node.step.settledSeq ?? node.step.firstVisibleSeq ?? node.step.startSeq;
-    case 'tool': return node.data.startSeq;
+    case 'tool': return node.data.displaySeq ?? node.data.startSeq;
     case 'compaction': return node.data.seq;
     case 'modelRetry': return node.data.seq;
     case 'turnError': return node.data.seq;

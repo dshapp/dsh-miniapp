@@ -4,7 +4,7 @@ import { resultFirstLine, type ContentBlock, type ToolChatData } from './chatNod
 
 export type ToolRowVariant = 'search' | 'read' | 'bash' | 'write' | 'edit' | 'code' | 'others';
 
-export type ToolRowState = 'running' | 'ok' | 'error' | 'stopped';
+export type ToolRowState = 'preparing' | 'running' | 'ok' | 'error' | 'stopped';
 
 export interface ToolRowModel {
   variant: ToolRowVariant;
@@ -19,6 +19,7 @@ const TOOL_VARIANTS: Record<string, ToolRowVariant> = {
   bash: 'bash',
   pwsh: 'bash',
   read: 'read',
+  read_image: 'read',
   web_fetch: 'read',
   web_search: 'search',
   grep: 'search',
@@ -141,8 +142,66 @@ function relativizeToCwd(summary: string, cwd: string | undefined): string {
   return summary;
 }
 
+export interface PreparingArguments { summary: string; kilobytes?: number }
+
+const CONTENT_FIELDS = ['content', 'old_string', 'new_string'];
+
+/**
+ * 参数还在流式生成时的行摘要（对齐 Android/Mac `PreparingArguments`）：只看参数头 8K，
+ * 从半截 JSON 里抠出已经写完的 file_path / path（文件类工具）或 description；
+ * write / edit 带上内容大小。不对几 MB 的流式写入反复整段解析。
+ */
+export function preparingArguments(name: string, raw: string): PreparingArguments {
+  const head = raw.slice(0, 8192);
+  const partialString = (key: string): [string, boolean] | undefined => {
+    const match = new RegExp('"' + key + '"\\s*:\\s*"').exec(head);
+    if (match === null) return undefined;
+    const start = match.index + match[0].length;
+    let i = start;
+    while (i < head.length) {
+      if (head[i] === '\\') { i += 2; continue; }
+      if (head[i] === '"') break;
+      i += 1;
+    }
+    const complete = i < head.length;
+    let encoded = head.slice(start, Math.min(i, head.length));
+    if (!complete) encoded = encoded.replace(/\\(?:u[0-9a-fA-F]{0,3})?$/, '');
+    try {
+      const value: unknown = JSON.parse('"' + encoded + '"');
+      return typeof value === 'string' ? [value, complete] : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  const variant = classifyTool(name);
+  const fileVariant = FILE_PATH_VARIANTS.has(variant);
+  const path = fileVariant ? partialString('file_path') ?? partialString('path') : undefined;
+  const summary =
+    path !== undefined && path[1] ? firstLine(path[0]) : fileVariant ? '' : firstLine(partialString('description')?.[0] ?? '');
+  const writes = variant === 'write' || variant === 'edit';
+  const kilobytes =
+    writes && CONTENT_FIELDS.some(key => new RegExp('"' + key + '"\\s*:').test(head)) ? Math.ceil(raw.length / 1024) : undefined;
+  return { summary, kilobytes };
+}
+
+/** write / edit 的内容大小（KB），给已派发的行当后缀（对齐 Android contentKilobytes）。 */
+function contentKilobytes(args: ArgsMap | undefined): number | undefined {
+  if (args === undefined) return undefined;
+  const values = CONTENT_FIELDS.map(key => args[key]).filter((value): value is string => typeof value === 'string');
+  return values.length === 0 ? undefined : Math.ceil(values.reduce((sum, value) => sum + value.length, 0) / 1024);
+}
+
 export function toolRowModel(data: ToolChatData, cwd: string | undefined): ToolRowModel {
   const variant = classifyTool(data.name);
+  if (data.preparing === true) {
+    const preview = preparingArguments(data.name, data.argsRaw);
+    return {
+      variant,
+      summary: relativizeToCwd(preview.summary, cwd),
+      summarySuffix: preview.kilobytes === undefined ? undefined : preview.kilobytes + ' KB',
+      state: 'preparing',
+    };
+  }
   const done = data.result !== undefined;
   const argsRaw = data.argsRaw;
   const args = argsRaw.length === 0 ? undefined : parseArgsMap(argsRaw);
@@ -177,7 +236,14 @@ export function toolRowModel(data: ToolChatData, cwd: string | undefined): ToolR
     variant,
     summary,
     filePath: deriveFilePath(variant, args),
-    summarySuffix: errorSummary === undefined && data.name === 'todo_write' ? todoSummary(argsRaw)?.[1] : undefined,
+    summarySuffix:
+      errorSummary !== undefined
+        ? undefined
+        : data.name === 'todo_write'
+          ? todoSummary(argsRaw)?.[1]
+          : variant === 'write' || variant === 'edit'
+            ? (kb => (kb === undefined ? undefined : kb + ' KB'))(contentKilobytes(args))
+            : undefined,
     errorSummary,
     state: resolvedState,
   };

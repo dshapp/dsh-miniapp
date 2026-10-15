@@ -7,6 +7,7 @@ import { SessionStore } from '../../src/state/sessionStore';
 import { decodeSubagentMode } from '../../src/transport/rpcMethods';
 import { goalPhaseAction } from '../../src/model/format';
 import { decodeToolError, resultFirstLine } from '../../src/model/chatNode';
+import { preparingArguments, toolRowModel } from '../../src/model/toolRow';
 
 const ev = (type: string, seq: number, data: unknown) => ({ type, seq, time: seq, data }) as never;
 
@@ -39,4 +40,28 @@ test('disarmed 的 active 目标只给恢复；activation 对不上当前版本�
 test('工具失败优先显示 error.reason', () => {
   const error = decodeToolError({ name: 'ToolError', code: 'EIO', reason: 'disk full\nretry later' });
   assert.equal(resultFirstLine({ seq: 1, time: 1, content: [], isError: true, error }), 'disk full');
+});
+
+test('参数流式生成时先画「准备中」的工具行，tool/call 落定后让位', () => {
+  const store = new SessionStore('s1');
+  store.apply(ev('turn/start', 1, { turn: 1 }), undefined);
+  store.applyAssistantStreamFrame({ kind: 'start', attemptId: 'a1', revision: 1, startedAfterSeq: 1, turn: 1, step: 1 });
+  const chunk = (index: number, value: unknown) =>
+    store.applyAssistantStreamFrame({ kind: 'chunk', attemptId: 'a1', revision: 1, index, time: 2, chunk: value as never });
+  chunk(0, { type: 'block-start', index: 0, blockType: 'tool-call' });
+  chunk(1, { type: 'tool-call-delta', index: 0, id: 'c1', name: 'write', argumentsDelta: '{"file_path":"/repo/a.ts","content":"x' });
+  const tools = store.nodes.filter(node => node.kind === 'tool');
+  assert.equal(tools.length, 1);
+  const data = tools[0].kind === 'tool' ? tools[0].data : undefined;
+  assert.equal(data?.preparing, true);
+  const row = data === undefined ? undefined : toolRowModel(data, '/repo');
+  assert.deepEqual([row?.state, row?.summary, row?.summarySuffix], ['preparing', 'a.ts', '1 KB']);
+  store.apply(ev('tool/call', 3, { callId: 'c1', name: 'write', arguments: '{}', turn: 1, step: 1 }), undefined);
+  const after = store.nodes.filter(node => node.kind === 'tool');
+  assert.deepEqual(after.map(node => (node.kind === 'tool' ? node.data.preparing === true : null)), [false]);
+});
+
+test('半截路径不当摘要', () => {
+  assert.equal(preparingArguments('read', '{"file_path":"/repo/sr').summary, '');
+  assert.equal(preparingArguments('bash', '{"description":"Run tests","command":"np').summary, 'Run tests');
 });

@@ -31,6 +31,7 @@ const DIFF_LINE_LIMIT = 400;
 /** 行尾状态图标；running 不换字形、只让行首那枚变体图标闪烁（见 blink）。 */
 function stateIcon(state: ToolRowState): { name: LucideIconName; blink?: boolean } {
   switch (state) {
+    case 'preparing':
     case 'running':
       return { name: 'loader-circle', blink: true };
     case 'ok':
@@ -209,7 +210,8 @@ export function ToolCard(props: {
 
   return (
     <View className={styles.card}>
-      <View className={styles.row} onClick={openDetail}>
+      {/* 准备中的行还没有参数与结果可看：只露摘要，不给详情（对齐 Android ToolCard）。 */}
+      <View className={styles.row} onClick={data.preparing === true ? undefined : openDetail}>
         <Icon
           name={toolVariantIcon(model.variant)}
           // running 时行首变体图标自己闪烁：安卓那边是转圈（Cards.kt:70-78/406-421），
