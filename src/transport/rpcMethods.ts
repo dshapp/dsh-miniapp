@@ -912,6 +912,11 @@ export async function credentialsDescribe(transport: RpcTransport, refs: string[
   return transport.call('credentials/describe', { refs });
 }
 
+/** 只按路径改一棵子树（模型目录），从不写凭证（对齐安卓 mutateHostSettings）。 */
+export async function settingsMutate(transport: RpcTransport, mutation: JsonObject): Promise<JsonValue> {
+  return transport.call('settings/mutate', mutation);
+}
+
 export async function agentPresetRead(transport: RpcTransport, id: string): Promise<string | undefined> {
   return str(jget(await transport.call('agentPresets/read', { agentPreset: id }), 'content'));
 }

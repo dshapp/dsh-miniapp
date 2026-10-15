@@ -513,6 +513,21 @@ const TABLE = {
   pluginsAcceptRisk: ['Accept risk', '接受风险'],
   pluginsSavedExemptions: ['Saved exact version exemptions', '已保存的精确版本豁免'],
   pluginsRevoke: ['Revoke', '撤销'],
+  hostSettingsCredentialsReadOnly: ['Credentials are read-only here; supported model catalogs can be edited.', '凭证在此只读；支持的模型目录可在此编辑。'],
+  hostCatalogEdit: ['Models', '模型目录'],
+  hostCatalogTitle: ['Model catalog', '模型目录'],
+  hostCatalogRevision: ['Expected revision %s', '原始版本 %s'],
+  hostCatalogOwned: ['User override', '用户覆盖'],
+  hostCatalogInherited: ['Inherited models · reset only unsets the user override', '继承模型 · 恢复仅移除用户覆盖'],
+  hostCatalogReadOnly: ['Read-only, saving, or the provider is no longer available', '只读、保存中或 provider 已不可用'],
+  hostCatalogModelId: ['Model id', '模型 ID'],
+  hostCatalogName: ['Name', '名称'],
+  hostCatalogContextWindow: ['Context window (tokens)', '上下文容量（tokens）'],
+  hostCatalogMaxTokens: ['Max tokens', '最大输出 tokens'],
+  hostCatalogRemove: ['Remove model', '移除模型'],
+  hostCatalogAdd: ['Add model', '添加模型'],
+  hostCatalogReset: ['Reset to inherited models', '恢复继承模型'],
+  hostCatalogSaving: ['Saving…', '保存中…'],
 } as const satisfies Record<string, Entry>;
 
 export type StringKey = keyof typeof TABLE;

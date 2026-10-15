@@ -1,16 +1,28 @@
 import React from 'react';
-import { Text, View } from '@tarojs/components';
-import { Strings } from '../i18n/strings';
+import { Input, Text, View } from '@tarojs/components';
+import { Strings, fmt } from '../i18n/strings';
 import { getAppModel } from '../state/appModel';
 import { useStore } from '../state/store';
 import { bool, jget, str } from '../model/json';
 import { agentPresetDisplayText } from '../model/format';
-import { providerSettingsRows, type ProviderSettingsRow } from '../model/management';
+import {
+  catalogDraftError,
+  catalogModelDraft,
+  catalogMutation,
+  openCatalogDraft,
+  providerSettingsRows,
+  resetCatalogDraft,
+  schemaNodeAt,
+  type CatalogModelDraft,
+  type ProviderCatalogDraft,
+  type ProviderSettingsRow,
+} from '../model/management';
 import {
   agentPresetRead,
   credentialsDescribe,
   llmListConfigurableProviders,
   settingsDescribe,
+  settingsMutate,
 } from '../transport/rpcMethods';
 import { openCardDetail } from './cardDetail';
 import { managementError, useManagementRefresh } from './management';
@@ -35,6 +47,10 @@ export function HostSettingsSection(props: { rowClass: string; labelClass: strin
   const [rows, setRows] = React.useState<ProviderSettingsRow[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | undefined>(undefined);
+  const [writable, setWritable] = React.useState(false);
+  const [draft, setDraft] = React.useState<ProviderCatalogDraft | undefined>(undefined);
+  const [saving, setSaving] = React.useState(false);
+  const [saveError, setSaveError] = React.useState<string | undefined>(undefined);
 
   const refresh = React.useCallback(async () => {
     setLoading(true);
@@ -52,9 +68,12 @@ export function HostSettingsSection(props: { rowClass: string; labelClass: strin
           row.source = str(jget(entry, 'source'));
         }
       }
+      // 草稿的 expectedRevision 定格在打开那一刻，刷新只换列表事实。
       setRows(next);
+      setWritable(bool(jget(describe, 'writable')) === true);
       setError(undefined);
     } catch (reason) {
+      setWritable(false);
       setError(managementError(reason));
     } finally {
       setLoading(false);
@@ -78,10 +97,47 @@ export function HostSettingsSection(props: { rowClass: string; labelClass: strin
     });
   };
 
+  // 草稿所属的 provider 还在、还支持编辑、主机可写，才放开编辑（对齐安卓 catalogWritable）。
+  const catalogWritable =
+    draft !== undefined && writable && !saving && rows.some(row => row.provider === draft.row.provider && row.catalogSupported);
+  const editRow = (index: number, patch: Partial<CatalogModelDraft>): void => {
+    if (!catalogWritable || draft === undefined) return;
+    setDraft({ ...draft, rows: draft.rows.map((row, i) => (i === index ? { ...row, ...patch } : row)), owned: true, touched: true });
+    setSaveError(undefined);
+  };
+  const saveCatalog = async (): Promise<void> => {
+    if (!catalogWritable || draft === undefined) return;
+    try {
+      const mutation = catalogMutation(draft);
+      if (mutation === undefined) {
+        setDraft(undefined);
+        return;
+      }
+      setSaving(true);
+      setSaveError(undefined);
+      await settingsMutate(model.managementTransport(), mutation);
+      setDraft(undefined);
+      await refresh();
+    } catch (reason) {
+      // 冲突不重试也不自动套到新事实上：草稿保留，交给用户处理。
+      setSaveError(managementError(reason));
+    } finally {
+      setSaving(false);
+    }
+  };
+  const fields = draft === undefined ? undefined : schemaNodeAt(draft.namespace.schema, [...draft.row.settingsPath, 'models', '0'])?.dict;
+  const hasField = (key: string): boolean => fields !== undefined && fields !== null && typeof fields === 'object' && key in fields;
+  const draftError = draft === undefined ? undefined : catalogDraftError(draft);
+  const textAction = (text: string, enabled: boolean, onClick: () => void, danger = false): JSX.Element => (
+    <Text className={(danger ? styles.actionDanger : styles.action) + (enabled ? '' : ' ' + styles.actionOff)} onClick={enabled ? onClick : undefined}>
+      {text}
+    </Text>
+  );
+
   return (
     <View>
       <Text className={props.sectionClass}>{Strings.hostSettingsTitle}</Text>
-      <Text className={styles.hint}>{loading ? Strings.hostSettingsLoading : Strings.hostSettingsReadOnly}</Text>
+      <Text className={styles.hint}>{loading ? Strings.hostSettingsLoading : writable ? Strings.hostSettingsCredentialsReadOnly : Strings.hostSettingsReadOnly}</Text>
       {error === undefined ? null : <Text className={styles.error}>{error}</Text>}
       {rows.length === 0 ? null : (
         <View className={styles.card}>
@@ -90,8 +146,76 @@ export function HostSettingsSection(props: { rowClass: string; labelClass: strin
               <Text className={styles.title}>{row.displayName.length > 0 ? row.displayName : row.provider}</Text>
               {row.error === undefined ? null : <Text className={styles.danger}>{row.error}</Text>}
               <Text className={styles.meta}>{credentialLine(row)}</Text>
+              {row.catalogSupported && writable ? (
+                <View className={styles.actions}>
+                  {textAction(Strings.hostCatalogEdit, !saving, () => {
+                    setSaveError(undefined);
+                    try {
+                      setDraft(openCatalogDraft(row));
+                    } catch (reason) {
+                      setSaveError(managementError(reason));
+                    }
+                  })}
+                </View>
+              ) : null}
             </View>
           ))}
+        </View>
+      )}
+      {draft === undefined ? (
+        saveError === undefined ? null : <Text className={styles.error}>{saveError}</Text>
+      ) : (
+        <View className={styles.card}>
+          <Text className={styles.title}>{(draft.row.displayName || draft.row.provider) + ' · ' + Strings.hostCatalogTitle}</Text>
+          <Text className={styles.meta}>{fmt(Strings.hostCatalogRevision, String(draft.namespace.revision ?? 0))}</Text>
+          <Text className={styles.meta}>{draft.owned ? Strings.hostCatalogOwned : Strings.hostCatalogInherited}</Text>
+          {catalogWritable || saving ? null : <Text className={styles.danger}>{Strings.hostCatalogReadOnly}</Text>}
+          {draft.rows.map((row, index) => (
+            <View key={index} className={styles.item}>
+              <Text className={styles.label}>{Strings.hostCatalogModelId}</Text>
+              <Input className={styles.input} value={row.id} disabled={!catalogWritable} onInput={event => editRow(index, { id: event.detail.value })} />
+              {hasField('name') ? (
+                <View>
+                  <Text className={styles.label}>{Strings.hostCatalogName}</Text>
+                  <Input className={styles.input} value={row.name} disabled={!catalogWritable} onInput={event => editRow(index, { name: event.detail.value })} />
+                </View>
+              ) : null}
+              {hasField('contextWindow') ? (
+                <View>
+                  <Text className={styles.label}>{Strings.hostCatalogContextWindow}</Text>
+                  <Input className={styles.input} type='number' value={row.contextWindow} disabled={!catalogWritable} onInput={event => editRow(index, { contextWindow: event.detail.value })} />
+                </View>
+              ) : null}
+              {hasField('maxTokens') ? (
+                <View>
+                  <Text className={styles.label}>{Strings.hostCatalogMaxTokens}</Text>
+                  <Input className={styles.input} type='number' value={row.maxTokens} disabled={!catalogWritable} onInput={event => editRow(index, { maxTokens: event.detail.value })} />
+                </View>
+              ) : null}
+              <View className={styles.actions}>
+                {textAction(Strings.hostCatalogRemove, catalogWritable, () => {
+                  setDraft({ ...draft, rows: draft.rows.filter((_, i) => i !== index), owned: true, touched: true });
+                }, true)}
+              </View>
+            </View>
+          ))}
+          <View className={styles.actions}>
+            {textAction(Strings.hostCatalogAdd, catalogWritable, () =>
+              setDraft({ ...draft, rows: [...draft.rows, catalogModelDraft({})], owned: true, touched: true }),
+            )}
+            {textAction(Strings.hostCatalogReset, catalogWritable && draft.owned, () => {
+              setDraft(resetCatalogDraft(draft));
+              setSaveError(undefined);
+            })}
+          </View>
+          {(saveError ?? draftError) === undefined ? null : <Text className={styles.danger}>{saveError ?? draftError}</Text>}
+          <View className={styles.actions}>
+            {textAction(Strings.cancel, !saving, () => {
+              setDraft(undefined);
+              setSaveError(undefined);
+            })}
+            {textAction(saving ? Strings.hostCatalogSaving : Strings.automationsSave, catalogWritable && draft.touched && draftError === undefined, () => void saveCatalog())}
+          </View>
         </View>
       )}
       {presets.length === 0 ? null : (

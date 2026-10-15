@@ -271,6 +271,12 @@ export function automationTiming(draft: AutomationDraft): JsonObject | undefined
 export interface ProviderSettingsRow {
   provider: string;
   displayName: string;
+  settingsNs: string;
+  settingsPath: string[];
+  /** settings/describe 里对应的命名空间（schema / value / base / user / revision / secrets）。 */
+  namespace?: JsonObject;
+  /** 模型目录可在手机上编辑：公开、未脱敏的 models 数组，元素带 string 型 id。 */
+  catalogSupported: boolean;
   error?: string;
   credentialRef?: string;
   /** provider 没有显式点名 apiKeyEnv，按命名规则推导出来的引用。 */
@@ -306,9 +312,133 @@ export function providerSettingsRows(providers: JsonValue | undefined, describe:
     return {
       provider,
       displayName: str(entry.displayName) ?? '',
+      settingsNs: str(entry.settingsNs) ?? '',
+      settingsPath: path,
+      namespace: ns,
+      catalogSupported: catalogSupported(ns, [...path, 'models']),
       error: str(entry.error),
       credentialRef,
       derivedRef: credentialRef !== undefined && namedRef === undefined,
     };
   });
+}
+
+/** schemastery 的 schema 用数字引用（refs），不是 JSON-schema 的 properties 树（对齐安卓 settingsSchemaNodeAt）。 */
+export function schemaNodeAt(schema: JsonValue | undefined, path: string[]): JsonObject | undefined {
+  if (!isObject(schema)) return undefined;
+  const refs = isObject(schema.refs) ? schema.refs : undefined;
+  const resolve = (value: JsonValue | undefined): JsonObject | undefined => {
+    if (isObject(value)) return value;
+    if (typeof value === 'number' && refs !== undefined) {
+      const node = refs[String(value)];
+      return isObject(node) ? node : undefined;
+    }
+    return undefined;
+  };
+  let node = resolve(schema.uid ?? schema);
+  for (const segment of path) {
+    if (node === undefined) return undefined;
+    const type = str(node.type);
+    node = resolve(type === 'object' ? jget(node.dict, segment) : type === 'dict' || type === 'array' ? node.inner : undefined);
+  }
+  return node;
+}
+
+function samePrefix(a: string[], b: string[]): boolean {
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i += 1) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+function catalogSupported(ns: JsonObject | undefined, modelsPath: string[]): boolean {
+  if (ns === undefined) return false;
+  // 含脱敏密钥的数组不能整份回写。
+  const secrets = (arr(ns.secrets) ?? []).map(secret => (arr(jget(secret, 'path')) ?? []).map(item => String(item)));
+  if (secrets.some(path => samePrefix(path, modelsPath))) return false;
+  if (str(schemaNodeAt(ns.schema, modelsPath)?.type) !== 'array') return false;
+  const fields = schemaNodeAt(ns.schema, [...modelsPath, '0'])?.dict;
+  if (!isObject(fields) || !('id' in fields)) return false;
+  return str(schemaNodeAt(ns.schema, [...modelsPath, '0', 'id'])?.type) === 'string';
+}
+
+/** 目录里的一个模型：raw 保留 compat/reasoning/input 等其它字段，只接管四个公开字段。 */
+export interface CatalogModelDraft { raw: JsonObject; id: string; name: string; contextWindow: string; maxTokens: string }
+
+const scalarText = (value: JsonValue | undefined): string =>
+  typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+
+export function catalogModelDraft(raw: JsonObject): CatalogModelDraft {
+  return { raw, id: scalarText(raw.id), name: scalarText(raw.name), contextWindow: scalarText(raw.contextWindow), maxTokens: scalarText(raw.maxTokens) };
+}
+
+function catalogModelValue(draft: CatalogModelDraft): JsonObject {
+  const out: JsonObject = { ...draft.raw };
+  const field = (key: 'id' | 'name' | 'contextWindow' | 'maxTokens', numeric: boolean): void => {
+    const text = draft[key];
+    // 没动过的字段（包括主机给的非常规值）原样保留。
+    if (text === scalarText(draft.raw[key])) return;
+    if (text.trim().length === 0) delete out[key];
+    else out[key] = numeric ? Number(text.trim()) : text.trim();
+  };
+  field('id', false);
+  field('name', false);
+  field('contextWindow', true);
+  field('maxTokens', true);
+  return out;
+}
+
+/** 一家 provider 的模型目录草稿：expectedRevision 定格在打开那一刻，冲突不自动重试（对齐安卓 ProviderCatalogDraft）。 */
+export interface ProviderCatalogDraft {
+  row: ProviderSettingsRow;
+  namespace: JsonObject;
+  rows: CatalogModelDraft[];
+  /** 用户层覆盖了这份目录（否则是继承的）。 */
+  owned: boolean;
+  touched: boolean;
+}
+
+export function openCatalogDraft(row: ProviderSettingsRow): ProviderCatalogDraft {
+  const ns = row.namespace;
+  if (!row.catalogSupported || ns === undefined) throw new Error('Unsupported model catalog');
+  const path = [...row.settingsPath, 'models'];
+  const models = valueAt(ns.value, path);
+  const list = Array.isArray(models) ? models : [];
+  if (!list.every(isObject)) throw new Error('Unsupported model catalog');
+  return { row, namespace: ns, rows: (list as JsonObject[]).map(catalogModelDraft), owned: valueAt(ns.user, path) !== undefined, touched: false };
+}
+
+/** 恢复继承：换成 base 层（或 schema 默认值）的目录，保存时只 unset 用户覆盖。 */
+export function resetCatalogDraft(draft: ProviderCatalogDraft): ProviderCatalogDraft {
+  const path = [...draft.row.settingsPath, 'models'];
+  const inherited = valueAt(draft.namespace.base, path) ?? jget(jget(schemaNodeAt(draft.namespace.schema, path), 'meta'), 'default');
+  const list = Array.isArray(inherited) ? inherited.filter(isObject) : [];
+  return { ...draft, rows: list.map(catalogModelDraft), owned: false, touched: true };
+}
+
+export function catalogDraftError(draft: ProviderCatalogDraft): string | undefined {
+  if (!draft.touched || !draft.owned) return undefined;
+  if (draft.rows.some(row => row.id.trim().length === 0)) return 'Model id is required';
+  if (new Set(draft.rows.map(row => row.id.trim())).size !== draft.rows.length) return 'Duplicate model id';
+  const positive = (text: string): boolean => text.trim().length === 0 || (/^[0-9]+$/.test(text.trim()) && Number(text.trim()) > 0);
+  if (draft.rows.some(row => !positive(row.contextWindow) || !positive(row.maxTokens))) return 'Token limits must be positive integers';
+  return undefined;
+}
+
+/** settings/mutate 的参数；没有实质变化返回 undefined。只写这一棵 models 子树，从不整份替换命名空间。 */
+export function catalogMutation(draft: ProviderCatalogDraft): JsonObject | undefined {
+  if (!draft.touched) return undefined;
+  const error = catalogDraftError(draft);
+  if (error !== undefined) throw new Error(error);
+  const path = [...draft.row.settingsPath, 'models'];
+  const original = valueAt(draft.namespace.user, path);
+  let op: JsonObject;
+  if (!draft.owned) {
+    if (original === undefined) return undefined;
+    op = { op: 'unset', path };
+  } else {
+    const models = draft.rows.map(catalogModelValue);
+    if (JSON.stringify(models) === JSON.stringify(original)) return undefined;
+    op = { op: 'set', path, value: models };
+  }
+  return { ns: draft.row.settingsNs, expectedRevision: draft.namespace.revision ?? 0, ops: [op] };
 }

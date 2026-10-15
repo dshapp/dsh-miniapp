@@ -12,7 +12,10 @@ import {
   automationDraft,
   automationDraftError,
   automationTiming,
+  catalogMutation,
   decodeAutomations,
+  openCatalogDraft,
+  resetCatalogDraft,
   decodeBundle,
   incompatiblePairs,
   providerSettingsRows,
@@ -145,4 +148,31 @@ test('插件精确版本豁免：不兼容组合去重、已保存豁免摊平',
   const result = { error: { incompatible: [{ name: 'x', version: '1.0.0', runtimeVersion: '0.2.1' }, { name: 'y', version: '2.0.0', runtimeVersion: '0.2.1' }] } };
   assert.deepEqual(incompatiblePairs(result, [bundle]).map(pair => pair.name), ['x', 'y']);
   assert.deepEqual(savedExemptions({ exemptions: { 'x@1.0.0': ['0.2.1', '0.2.2'] } }).length, 2);
+});
+
+test('宿主模型目录编辑：只写 models 子树，未动字段原样保留，恢复继承只 unset', () => {
+  const schema = {
+    uid: 1,
+    refs: {
+      1: { type: 'object', dict: { providers: 2 } },
+      2: { type: 'object', dict: { openai: 3 } },
+      3: { type: 'object', dict: { models: 4 } },
+      4: { type: 'array', inner: 5 },
+      5: { type: 'object', dict: { id: 6, name: 6, contextWindow: 7 } },
+      6: { type: 'string' },
+      7: { type: 'number' },
+    },
+  };
+  const models = [{ id: 'gpt-x', name: 'GPT X', compat: { a: 1 } }];
+  const describe = { writable: true, namespaces: [{ ns: 'llm', revision: 7, schema, value: { providers: { openai: { models } } }, user: { providers: { openai: { models } } }, base: { providers: { openai: { models: [] } } } }] };
+  const [row] = providerSettingsRows([{ provider: 'openai', settingsNs: 'llm', settingsPath: ['providers', 'openai'] }], describe);
+  assert.equal(row.catalogSupported, true);
+  const draft = openCatalogDraft(row);
+  const edited = { ...draft, rows: [{ ...draft.rows[0], contextWindow: '128000' }], touched: true };
+  assert.deepEqual(catalogMutation(edited), {
+    ns: 'llm', expectedRevision: 7,
+    ops: [{ op: 'set', path: ['providers', 'openai', 'models'], value: [{ id: 'gpt-x', name: 'GPT X', compat: { a: 1 }, contextWindow: 128000 }] }],
+  });
+  assert.deepEqual(catalogMutation(resetCatalogDraft(draft))?.ops, [{ op: 'unset', path: ['providers', 'openai', 'models'] }]);
+  assert.equal(catalogMutation(draft), undefined);
 });
