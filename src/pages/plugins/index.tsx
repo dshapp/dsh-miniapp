@@ -59,7 +59,8 @@ export default function PluginsPage(): JSX.Element {
       const [nextBundles, nextPlugins, nextExemptions] = await Promise.all([
         pluginListBundles(transport),
         pluginListPlugins(transport),
-        pluginListVersionExemptions(transport),
+        // 豁免列表读不到（老主机没有这个方法等）只隐藏豁免区块，不拖垮整页刷新。
+        pluginListVersionExemptions(transport).catch(() => undefined),
       ]);
       setBundles(nextBundles);
       setPlugins(nextPlugins);
@@ -267,7 +268,7 @@ export default function PluginsPage(): JSX.Element {
                 {list.length === 0 ? <Text className={styles.hint}>{Strings.managementEmpty}</Text> : list.map(bundleCard)}
               </View>
             ))}
-            {pairs.length === 0 ? null : (
+            {exemptions === undefined || pairs.length === 0 ? null : (
               <View className={styles.card}>
                 {pairs.map(pair => (
                   <Text
@@ -280,8 +281,8 @@ export default function PluginsPage(): JSX.Element {
                 ))}
               </View>
             )}
-            <Text className={styles.sectionTitle}>{Strings.pluginsSavedExemptions}</Text>
-            {saved.length === 0 ? <Text className={styles.hint}>{Strings.managementEmpty}</Text> : null}
+            {exemptions === undefined ? null : <Text className={styles.sectionTitle}>{Strings.pluginsSavedExemptions}</Text>}
+            {exemptions !== undefined && saved.length === 0 ? <Text className={styles.hint}>{Strings.managementEmpty}</Text> : null}
             {saved.map(item => (
               <View key={item.packageVersion + '/' + item.runtimeVersion} className={styles.card}>
                 <View className={styles.titleRow}>
