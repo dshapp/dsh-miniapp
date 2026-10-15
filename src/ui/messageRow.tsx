@@ -569,6 +569,7 @@ function TurnProcessRow(props: {
       <CardHeader
         name='ellipsis'
         summary={summary.length > 0 ? summary : Strings.thinking}
+        suffix={spec.durationMs === undefined ? undefined : fmt(Strings.turnProcessTook, formatDuration(spec.durationMs))}
         findQuery={findQuery}
         findActive={findActive}
         expanded={expandable ? expanded : undefined}
@@ -711,6 +712,14 @@ function TurnTailRow(props: { data: TurnTailData; onFork?: (turn: number) => voi
       void Taro.showToast({ title: Strings.copyFailed, icon: 'none' });
     }
   };
+  // 停止/失败的轮次只交代结局，不给用量与用时（对齐 Android TurnTailRow / web TurnProcessNodeView）。
+  if (data.outcome === 'stopped' || data.outcome === 'failed') {
+    return data.outcome === 'failed' ? (
+      <NoticeRow tone='error' text={Strings.turnFailed} icon='triangle-alert' />
+    ) : (
+      <NoticeRow tone='info' text={Strings.turnStopped} icon='pause-circle' />
+    );
+  }
   const totalTokens = data.usage === undefined ? 0 : turnTotalTokens(data.usage);
   // 页脚只有两个读数胶囊：总 token 与用时；TPS/TTFT 在用时明细里（对齐 Android StatPill）。
   return (
@@ -755,7 +764,7 @@ function TurnTailRow(props: { data: TurnTailData; onFork?: (turn: number) => voi
             <Text className={styles.pillText}>{formatDuration(data.runMs)}</Text>
           </View>
         )}
-        <Text className={styles.tailClock}>{clockTime(data.time)}</Text>
+        <Text className={styles.tailClock}>{clockTime(data.endedAt ?? data.time)}</Text>
       </View>
       {usageOpen ? <UsagePanel data={data} /> : null}
       {timeOpen ? <TimePanel data={data} /> : null}

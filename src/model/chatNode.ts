@@ -139,6 +139,8 @@ export interface TurnProcessSpec {
   toolCallCount: number;
   subagentCount: number;
   inlineReasoning: boolean;
+  /** 成功轮次的用时（对齐 Mac `TurnProcessSpec.durationMs`）。 */
+  durationMs?: number;
 }
 
 export function turnProcessKey(spec: TurnProcessSpec): string {
@@ -332,8 +334,14 @@ export interface TurnTailData {
   decodeTokensPerSec?: number;
   closingText?: string;
   messageId?: MessageId;
+  /** 只有成功的轮次才有用时（web 停止/失败的轮次用状态替掉用时）。 */
   runMs?: number;
+  /** turn/end 落定后的结局：aborted → 停止，error → 失败，其余算完成（web `TurnProcessNodeView`）。 */
+  outcome?: TurnOutcome;
+  endedAt?: number;
 }
+
+export type TurnOutcome = 'completed' | 'stopped' | 'failed';
 
 // 转写节点 ————————————————————————————————————————————————————
 
@@ -399,7 +407,7 @@ export function chatNodeAnchorSeq(node: ChatNode): number {
  * 这一行是不是真的有内容可画。轮次页脚要等 turn/end 把收尾助手消息折进来才成立。
  */
 export function chatNodeRendersRow(node: ChatNode): boolean {
-  if (node.kind === 'turnTail') return node.data.messageId !== undefined;
+  if (node.kind === 'turnTail') return node.data.outcome !== undefined || node.data.messageId !== undefined;
   return true;
 }
 

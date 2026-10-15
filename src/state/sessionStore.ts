@@ -2102,6 +2102,8 @@ export class SessionStore {
     const tailCtx = this.contexts.get(tailKey);
     if (tailCtx === undefined || tailCtx.kind !== 'tail') return;
     const tail = tailCtx.data;
+    tail.outcome = kind === 'aborted' ? 'stopped' : kind === 'error' ? 'failed' : 'completed';
+    tail.endedAt = event.time;
     if (kind === 'completed') {
       tail.seq = event.seq;
       let lastAssistant: AssistantStepData | undefined;
@@ -2174,16 +2176,17 @@ export class SessionStore {
           .filter((block): block is Extract<AssistantBlock, { kind: 'text' }> => block !== null && block.kind === 'text')
           .map(block => block.text)
           .join('');
-        // 计时起点同理：没有 turn/start 时 tail.time 就是 turn/end 自己的时刻，
-        // 相减恒为 0，用时胶囊会整个消失；这时退回这一轮最早那步的开始时刻。
-        // 被截断的轮次不给兜底：算出来的用时只是窗口内那一段，比真实值短，读数会骗人。
-        const startedAt = hasStart
-          ? tail.time
-          : turnFullyLoaded
-            ? firstStepStartTime ?? this.turnFirstEventTime.get(turn)
-            : undefined;
-        tail.runMs = startedAt === undefined ? undefined : Math.max(0, event.time - startedAt);
       }
+      // 计时起点同理：没有 turn/start 时 tail.time 就是 turn/end 自己的时刻，
+      // 相减恒为 0，用时胶囊会整个消失；这时退回这一轮最早那步的开始时刻。
+      // 被截断的轮次不给兜底：算出来的用时只是窗口内那一段，比真实值短，读数会骗人。
+      // 没有收尾消息（以工具调用结束）的成功轮次同样有用时。
+      const startedAt = hasStart
+        ? tail.time
+        : turnFullyLoaded
+          ? firstStepStartTime ?? this.turnFirstEventTime.get(turn)
+          : undefined;
+      tail.runMs = startedAt === undefined ? undefined : Math.max(0, event.time - startedAt);
     } else {
       tail.seq = event.seq;
     }
@@ -2857,6 +2860,9 @@ export class SessionStore {
         toolCallCount: acc.toolCalls,
         subagentCount: acc.subagents,
         inlineReasoning: answered && acc.lastReasoning,
+        durationMs: (tail => (tail !== undefined && tail.kind === 'tail' ? tail.data.runMs : undefined))(
+          this.contexts.get('turn-tail:' + turn),
+        ),
       });
     }
   }

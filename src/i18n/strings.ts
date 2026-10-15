@@ -417,6 +417,10 @@ const TABLE = {
     '用于创建自定义 Agent preset：具备标准模式的全部能力，并提供运行时检查、插件实验和 preset 创作指导。',
   ],
   presetUserTrust: ['Custom', '自定义'],
+  // 轮次结局（web `message.stopped` / `message.turnProcess.*`，文案以 Mac L10n 为准）。
+  turnStopped: ['Stopped', '已停止'],
+  turnFailed: ['Failed', '处理失败'],
+  turnProcessTook: ['Completed in %s', '已完成，用时 %s'],
 } as const satisfies Record<string, Entry>;
 
 export type StringKey = keyof typeof TABLE;

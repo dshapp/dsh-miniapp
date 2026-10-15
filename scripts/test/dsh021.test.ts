@@ -65,3 +65,17 @@ test('半截路径不当摘要', () => {
   assert.equal(preparingArguments('read', '{"file_path":"/repo/sr').summary, '');
   assert.equal(preparingArguments('bash', '{"description":"Run tests","command":"np').summary, 'Run tests');
 });
+
+test('轮次页脚：停止/失败只交代结局，成功轮（哪怕以工具收尾）才有用时', () => {
+  const tail = (reason: string) => {
+    const store = new SessionStore('s1');
+    store.apply(ev('turn/start', 1, { turn: 1 }), undefined);
+    store.apply(ev('tool/call', 2, { callId: 'c1', name: 'bash', arguments: '{}', turn: 1, step: 1 }), undefined);
+    store.apply({ type: 'turn/end', seq: 3, time: 4000, data: { turn: 1, reason: { kind: reason } } } as never, undefined);
+    const node = store.nodes.find(item => item.kind === 'turnTail');
+    return node?.kind === 'turnTail' ? node.data : undefined;
+  };
+  assert.deepEqual([tail('aborted')?.outcome, tail('aborted')?.runMs], ['stopped', undefined]);
+  assert.equal(tail('error')?.outcome, 'failed');
+  assert.deepEqual([tail('completed')?.outcome, tail('completed')?.runMs], ['completed', 3999]);
+});
