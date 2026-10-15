@@ -10,6 +10,13 @@ import type {
   PermissionPresetOption, WorkspaceView,
 } from '../model/types';
 import { decodeHistoryEntry, decodeSessionSummary, decodeWorkspaceView } from '../model/frames';
+import {
+  decodeAutomations,
+  decodeBundles,
+  scheduleExpected,
+  type ManagedAutomation,
+  type ManagedBundle,
+} from '../model/management';
 import { questionAnswerPayload, type QuestionAnswer } from '../model/questionFlow';
 import {
   decodeChangedFileDiff,
@@ -804,6 +811,89 @@ export async function subagentInterrupt(transport: RpcTransport, address: Subage
     parentSessionId: address.parentSessionId,
     mode: address.mode,
   });
+}
+
+// —— 管理页（0.2.1-alpha.2，参数形状照安卓 ManagementRpc / SettingsRpc）————————————
+
+export async function pluginListBundles(transport: RpcTransport): Promise<ManagedBundle[]> {
+  return decodeBundles(await transport.call('pluginManager/listBundles', {}));
+}
+
+export async function pluginListPlugins(transport: RpcTransport): Promise<JsonObject[]> {
+  const value = await transport.call('pluginManager/listPlugins', {});
+  if (!Array.isArray(value)) throw new Error('Invalid plugin entries');
+  return value.filter((item): item is JsonObject => item !== null && typeof item === 'object' && !Array.isArray(item));
+}
+
+export async function pluginSetBundleEnabled(transport: RpcTransport, name: string, enabled: boolean): Promise<JsonValue> {
+  return transport.call('pluginManager/setBundleEnabled', { name, enabled });
+}
+
+export async function pluginSetPluginEnabled(transport: RpcTransport, id: string, enabled: boolean): Promise<JsonValue> {
+  return transport.call('pluginManager/setPluginEnabled', { id, enabled });
+}
+
+export async function pluginRemoveBundle(transport: RpcTransport, name: string): Promise<JsonValue> {
+  return transport.call('pluginManager/removeBundle', { name });
+}
+
+/** 按主机给的精确 installTarget 安装；requestId 由调用方生成，失败时凭它恢复结果而不是重装。 */
+export async function pluginInstallBundle(transport: RpcTransport, spec: string, requestId: string, enabled: boolean): Promise<JsonValue> {
+  return transport.call('pluginManager/installBundle', { spec, options: { requestId, enabled, saveExact: true } });
+}
+
+export async function pluginWaitForInstall(transport: RpcTransport, requestId: string): Promise<JsonValue> {
+  return transport.call('pluginManager/waitForInstall', { requestId });
+}
+
+export async function pluginCancelInstall(transport: RpcTransport, requestId: string): Promise<JsonValue> {
+  return transport.call('pluginManager/cancelInstall', { requestId });
+}
+
+export async function scheduleCatalog(transport: RpcTransport): Promise<ManagedAutomation[]> {
+  return decodeAutomations(await transport.call('schedule/catalog', {}));
+}
+
+export async function scheduleUpdate(
+  transport: RpcTransport,
+  entry: ManagedAutomation,
+  title: string,
+  prompt: string,
+): Promise<JsonValue> {
+  return transport.call('schedule/update', request({
+    sessionId: entry.sessionId,
+    id: entry.id,
+    expected: scheduleExpected(entry.raw),
+    title: title.trim(),
+    prompt: prompt.trim(),
+  }));
+}
+
+export async function scheduleDelete(transport: RpcTransport, entry: ManagedAutomation): Promise<JsonValue> {
+  return transport.call('schedule/delete', request({ sessionId: entry.sessionId, id: entry.id }));
+}
+
+/** 投递历史：before 是独占的消息游标；记录只证明投递，不代表模型执行完成。 */
+export async function scheduleHistory(transport: RpcTransport, entry: ManagedAutomation, before?: string): Promise<JsonValue> {
+  const body: JsonObject = { sessionId: entry.sessionId, id: entry.id, limit: 20 };
+  if (before !== undefined) body.before = before;
+  return transport.call('schedule/history', request(body));
+}
+
+export async function settingsDescribe(transport: RpcTransport): Promise<JsonValue> {
+  return transport.call('settings/describe', {});
+}
+
+export async function llmListConfigurableProviders(transport: RpcTransport): Promise<JsonValue> {
+  return transport.call('llm/listConfigurableProviders', {});
+}
+
+export async function credentialsDescribe(transport: RpcTransport, refs: string[]): Promise<JsonValue> {
+  return transport.call('credentials/describe', { refs });
+}
+
+export async function agentPresetRead(transport: RpcTransport, id: string): Promise<string | undefined> {
+  return str(jget(await transport.call('agentPresets/read', { agentPreset: id }), 'content'));
 }
 
 export { ApiException };

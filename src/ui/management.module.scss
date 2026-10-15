@@ -1,0 +1,139 @@
+/* 管理页（插件、自动化任务、宿主设置）共用的布局：卡片列表 + 文字按钮，口径同设置页。 */
+
+.page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  background: var(--dsh-color-bg);
+  padding-bottom: 32px;
+}
+
+.hint {
+  display: block;
+  padding: 12px 16px 4px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsh-color-text-sub);
+}
+
+.error {
+  display: block;
+  padding: 8px 16px;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--dsh-color-bad);
+  word-break: break-word;
+}
+
+.sectionTitle {
+  display: block;
+  padding: 20px 16px 8px;
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 12px 10px;
+  padding: 12px 16px;
+  background: var(--dsh-color-card);
+  border-radius: var(--dsh-radius-card);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 21px;
+  font-weight: 500;
+  color: var(--dsh-color-text);
+  word-break: break-all;
+}
+
+.detail {
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--dsh-color-text-sub);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.meta {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--dsh-color-text-faint);
+  word-break: break-all;
+}
+
+.danger {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--dsh-color-bad);
+  word-break: break-word;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-top: 6px;
+}
+
+.action {
+  font-size: 14px;
+  color: var(--dsh-color-primary);
+}
+
+.actionDanger {
+  font-size: 14px;
+  color: var(--dsh-color-bad);
+}
+
+.actionOff {
+  opacity: 0.4;
+}
+
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  font-size: 14px;
+  color: var(--dsh-color-text);
+  border: 1px solid var(--dsh-color-border);
+  border-radius: 8px;
+}
+
+.textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 96px;
+  padding: 8px 10px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--dsh-color-text);
+  border: 1px solid var(--dsh-color-border);
+  border-radius: 8px;
+}
+
+.label {
+  font-size: 12px;
+  color: var(--dsh-color-text-sub);
+  padding-top: 6px;
+}
+
+.mono {
+  font-family: Menlo, monospace;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--dsh-color-text);
+  white-space: pre-wrap;
+  word-break: break-all;
+}

@@ -132,6 +132,8 @@ export class AppModel {
   /** 新建页给不给预设选择入口：0.2.1 删掉了部署开关，只看有没有可用（未损坏）的预设（对齐 Android）。 */
   readonly agentPresetPickerEnabledStore = new Store<boolean>(true);
   readonly lastErrorStore = new Store<string | undefined>(undefined);
+  /** 最近一条主机广播：管理页据此重读（对齐安卓 ManagementRefresh 的事件触发）。 */
+  readonly managementEventStore = new Store<{ name: string; at: number } | undefined>(undefined);
   /**
    * 有「还没看过」错误的会话 id。
    *
@@ -231,6 +233,11 @@ export class AppModel {
     });
   }
 
+  /** 管理页（插件、自动化任务、宿主设置）直接走 RPC：它们的状态只活在页面里，不进会话模型。 */
+  managementTransport(): RpcTransport {
+    return this.requireTransport();
+  }
+
   private requireTransport(): RpcTransport {
     if (this.transport === undefined) this.transport = this.buildTransport();
     return this.transport;
@@ -250,6 +257,8 @@ export class AppModel {
       sessionIsOnScreen: sessionId => this.selectedSessionId === sessionId,
       allSessions: () => Array.from(this.sessions.values()),
       remoteEventHandler: event => {
+        // 管理页只听自己那一路广播（plugin-manager/changed、schedule/changed……），不另开 $events。
+        this.managementEventStore.set({ name: event, at: Date.now() });
         // 主机实时贡献改变就叫一声，目录要跟着重拉；其余事件照旧刷新列表。
         if (event === 'permission-presets/catalog-changed') void this.loadPermissionCatalog();
         void this.refreshInternal();

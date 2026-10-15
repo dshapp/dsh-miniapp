@@ -170,6 +170,15 @@ export default function SettingsPage(): JSX.Element {
           })}
         </View>
 
+        {/* 主机管理入口：安卓放在会话列表的视图菜单里，小程序收在设置页。 */}
+        <Text className={styles.sectionTitle}>DSH</Text>
+        <View className={styles.card}>
+          <View className={styles.row} onClick={() => openPage(pageRoutes.PLUGINS)}>
+            <Text className={styles.label}>{Strings.pluginsTitle}</Text>
+            <Icon name='chevron-right' className={styles.chevron} />
+          </View>
+        </View>
+
         <Text className={styles.sectionTitle}>{Strings.appearance}</Text>
         <View className={styles.card}>
           <View className={styles.row} onClick={event => setLocaleMenu(anchorFromEvent(event))}>
