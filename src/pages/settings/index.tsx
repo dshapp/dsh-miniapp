@@ -13,6 +13,7 @@ import type { ActionMenuAnchor, ActionMenuItem } from '../../ui/actionMenu';
 import { Icon } from '../../ui/icon';
 import { NavBar, NavIconButton, NavTitle } from '../../ui/navBar';
 import { PageShell } from '../../ui/pageShell';
+import { HostSettingsSection } from '../../ui/hostSettings';
 import styles from './index.module.scss';
 
 function languageLabel(locale: AppLocale | null): string {
@@ -182,6 +183,14 @@ export default function SettingsPage(): JSX.Element {
             <Icon name='chevron-right' className={styles.chevron} />
           </View>
         </View>
+
+        <HostSettingsSection
+          rowClass={styles.row}
+          labelClass={styles.label}
+          valueClass={styles.value}
+          cardClass={styles.card}
+          sectionClass={styles.sectionTitle}
+        />
 
         <Text className={styles.sectionTitle}>{Strings.appearance}</Text>
         <View className={styles.card}>

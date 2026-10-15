@@ -8,6 +8,7 @@ import { decodeSubagentMode } from '../../src/transport/rpcMethods';
 import { goalPhaseAction } from '../../src/model/format';
 import { decodeToolError, resultFirstLine } from '../../src/model/chatNode';
 import { preparingArguments, toolRowModel } from '../../src/model/toolRow';
+import { decodeBundle, providerSettingsRows, scheduleExpected } from '../../src/model/management';
 
 const ev = (type: string, seq: number, data: unknown) => ({ type, seq, time: seq, data }) as never;
 
@@ -98,4 +99,17 @@ test('运行中底部状态：当前未出结果的工具与本轮 turn/start �
   assert.equal(store.runningStatus?.toolName, 'bash');
   store.apply({ type: 'turn/end', seq: 3, time: 9000, data: { turn: 1, reason: { kind: 'completed' } } } as never, undefined);
   assert.equal(store.runningStatus, undefined);
+});
+
+test('管理页口径：bundle 安装目标、ScheduleRecord expected、凭证引用', () => {
+  const missing = decodeBundle({ name: 'web', official: true, availability: 'missing', installTarget: { spec: 'npm:web@1.0.0', version: '1.0.0' } });
+  assert.deepEqual([missing.missing, missing.installSpec, missing.removable], [true, 'npm:web@1.0.0', false]);
+  assert.equal(decodeBundle({ name: 'x', installTarget: { spec: 'npm:x' } }).installSpec, undefined);
+  const record = { id: 'r1', kind: 'daily', title: 't', prompt: 'p', scheduledAt: '2026-10-16T01:00:00Z', time: '09:00:00', timeZone: 'Asia/Shanghai', status: 'active', sessionId: 's1' };
+  assert.deepEqual(Object.keys(scheduleExpected(record)), ['id', 'kind', 'title', 'prompt', 'scheduledAt', 'time', 'timeZone']);
+  const rows = providerSettingsRows(
+    [{ provider: 'open-ai', settingsNs: 'llm', settingsPath: ['providers', 'openai'] }, { provider: 'deepseek-account', settingsNs: 'llm' }],
+    { namespaces: [{ ns: 'llm', value: { providers: { openai: { apiKeyEnv: 'MY_KEY' } } } }] },
+  );
+  assert.deepEqual(rows.map(row => [row.credentialRef, row.derivedRef]), [['MY_KEY', false], [undefined, false]]);
 });

@@ -41,6 +41,14 @@
   border-radius: var(--dsh-radius-card);
 }
 
+/* 卡片里的一项（宿主设置的 provider 行）。 */
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+}
+
 .titleRow {
   display: flex;
   align-items: center;

@@ -486,6 +486,16 @@ const TABLE = {
   automationsLegacyReceipt: ['Legacy receipt: prompt unavailable', '旧投递记录：内容不可用'],
   automationsMore: ['Load more', '加载更多'],
   automationsPruned: ['Older records were pruned by the host', '主机已裁剪较旧记录'],
+  hostSettingsTitle: ['DSH · Models & credentials', 'DSH · 模型与凭证'],
+  hostSettingsReadOnly: ['Read-only here: credentials and the model catalog are edited on the Desktop.', '此处只读：凭证与模型目录请在电脑上修改。'],
+  hostSettingsLoading: ['Loading…', '加载中…'],
+  hostCredentialConfigured: ['configured', '已配置'],
+  hostCredentialMissing: ['not configured', '未配置'],
+  hostCredentialUnknown: ['unknown', '未知'],
+  hostCredentialDerived: ['derived ref; not named by provider', '推导引用；provider 未点名'],
+  hostCredentialNamed: ['provider ref', 'provider 指定引用'],
+  hostCredentialAccount: ['Account / provider-managed authentication', '账号或 provider 自有认证'],
+  hostPresetsTitle: ['Agent presets · YAML (read-only)', 'Agent 预设 · YAML（只读）'],
 } as const satisfies Record<string, Entry>;
 
 export type StringKey = keyof typeof TABLE;
