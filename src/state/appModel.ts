@@ -1283,13 +1283,27 @@ export class AppModel {
     }
     try {
       const value = await sessionCreate(this.requireTransport(), workspaceId);
-      await this.refreshInternal();
+      // 这里**不**等整表 session/list：那是全部会话（几千条、近 2 MB）的一次全量拉取，经加密
+      // 隧道在真机上要 2.5～6 秒，新建页的转圈几乎全花在它上面。新会话会由主机的
+      // `api-session/added` 实时补进名册；万一那一路没送到，再在后台补拉一次。
       this.open(value.sessionId);
+      this.ensureInRoster(value.sessionId);
       return value.sessionId;
     } catch (error) {
       this.lastErrorStore.set(describe(error));
       return undefined;
     }
+  }
+
+  /**
+   * 新建的会话应当很快经 `api-session/added` 出现在名册里；过一会儿还没有（$events 那一路
+   * 正好在重连、丢了这一帧）就后台整表补拉一次，失败也不打扰用户——列表下次刷新会带回来。
+   */
+  private ensureInRoster(sessionId: SessionId): void {
+    setTimeout(() => {
+      if (sessionListStore.sessionsById.has(sessionId)) return;
+      void this.refreshInternal().catch(() => undefined);
+    }, ROSTER_UPSERT_GRACE_MS);
   }
 
   /**
@@ -1419,6 +1433,9 @@ export class AppModel {
 }
 
 // —— 小工具 ————————————————————————————————————————————————
+
+/** 新建会话后等 `api-session/added` 把它补进名册的宽限时间，过了还没有就后台整表补拉。 */
+const ROSTER_UPSERT_GRACE_MS = 5000;
 
 /** 图片分片大小：等于主机 readBytes 的默认上限 2 MiB。 */
 const IMAGE_CHUNK_BYTES = 2 * 1024 * 1024;
