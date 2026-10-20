@@ -136,6 +136,17 @@ const RECORD_FIELDS: Record<string, string[]> = {
   cron: ['expression', 'timeZone'],
 };
 
+/** 规则的时间口径：类型 + 记录里的时间字段原样（如「daily · 22:00:00 · Asia/Shanghai」）。 */
+export function automationRuleText(entry: ManagedAutomation): string {
+  const values = (RECORD_FIELDS[entry.kind] ?? []).flatMap(key => {
+    const value = entry.raw[key];
+    if (Array.isArray(value)) return [value.join(',')];
+    return value === undefined || value === null ? [] : [String(value)];
+  });
+  if (values.length === 0 && entry.scheduledAt !== undefined) values.push(entry.scheduledAt);
+  return [entry.kind, ...values].join(' · ');
+}
+
 /** schedule/update 的 expected：编辑开始时看到的那份完整 ScheduleRecord（对齐安卓 scheduleExpected）。 */
 export function scheduleExpected(entry: JsonObject): JsonObject {
   const fields = RECORD_FIELDS[str(entry.kind) ?? ''];

@@ -26,6 +26,7 @@ import { ComposerBar } from '../../ui/composerBar';
 import { EmptyState } from '../../ui/emptyState';
 import { Icon } from '../../ui/icon';
 import { MessageRow, RunningStatusRow } from '../../ui/messageRow';
+import { scheduleCatalog } from '../../transport/rpcMethods';
 import { NavBar, NavIconButton, NavLabel, NavSearchInput, NavTitle, useNavMetrics } from '../../ui/navBar';
 import {
   ApprovalSheet,
@@ -473,6 +474,7 @@ export default function ChatPage(): JSX.Element {
           changesAddress={turn => model.changesAddressForTurn(sessionId, turn)}
           loadTurnChanges={address => model.loadTurnChanges(address)}
           loadTurnChangesDiff={(address, index) => model.loadTurnChangesDiff(address, index)}
+          loadAutomations={() => scheduleCatalog(model.managementTransport())}
           fileMentions={node.kind === 'assistant'
             ? store.closingMentions(node.step.turn, node.step.step, node.step.status === 'running')
             : undefined}

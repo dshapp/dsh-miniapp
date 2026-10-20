@@ -589,6 +589,15 @@ export function clockTime(ms: number): string {
   return `${hh}:${mm}`;
 }
 
+/** ISO 时间转本地「YYYY-MM-DD HH:mm」；解析不了原样返回。 */
+export function localDateTime(iso: string): string {
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return iso;
+  const date = new Date(ms);
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${clockTime(ms)}`;
+}
+
 export function formatBytes(count: number): string {
   if (count >= 1 << 20) return (count / (1 << 20)).toFixed(1) + ' MB';
   return (count / 1024).toFixed(0) + ' KB';

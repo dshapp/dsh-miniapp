@@ -3,7 +3,8 @@ import Taro from '@tarojs/taro';
 import { Text, View } from '@tarojs/components';
 import { color_bad, color_good, color_primary, color_text_faint, color_text_sub, color_warning, DIMENS } from '../const';
 import { Strings, fmt } from '../i18n/strings';
-import { questionReplyPairs, turnTriggerPresentation } from '../model/turnTrigger';
+import { questionReplyPairs, scheduleReminders, turnTriggerPresentation, type ScheduleReminder } from '../model/turnTrigger';
+import { automationRuleText, type ManagedAutomation } from '../model/management';
 import { liveActivityKey } from '../model/toolRow';
 import { useBreathe, withBreathe } from './breathe';
 import type { QuestionReplyPair } from '../model/questionFlow';
@@ -41,12 +42,13 @@ import {
   formatDuration,
   formatLatencySeconds,
   formatTokensPerSecond,
+  localDateTime,
   runningStatusText,
   tokenCount,
   turnProcessLabel,
   turnTotalTokens,
 } from '../model/format';
-import { JsonTree, NoticeRow, ThinkCard, ToolCard } from './cards';
+import { DetailSection, JsonTree, NoticeRow, ThinkCard, ToolCard } from './cards';
 import { ImageGallery, decodeAttachmentRef, type OpenImage } from './attachmentImage';
 export { AttachmentImage, decodeAttachmentRef, type AttachmentRef } from './attachmentImage';
 import { ChangedFilesCard } from './changedFilesCard';
@@ -105,6 +107,8 @@ export interface MessageRowProps {
   loadTurnChanges?: (address: TurnChangesAddress) => Promise<TurnChangesSummary | undefined>;
   /** 读单个列出的文件的比较。 */
   loadTurnChangesDiff?: (address: TurnChangesAddress, index: number) => Promise<ChangedFileDiff | undefined>;
+  /** 读自动化任务目录（schedule/catalog），给定时任务消息的详情查任务名称与时间规则。 */
+  loadAutomations?: () => Promise<ManagedAutomation[]>;
 }
 
 /** 文件名过长时截中间、保住扩展名（对齐 Mac 的 truncationMode(.middle)）。 */
@@ -153,8 +157,10 @@ function UserBubble(props: {
   onOpenImage?: MessageRowProps['onOpenImage'];
   referencedSessions?: Record<string, string>;
   onOpenSession?: (sessionId: string) => void;
+  /** 气泡上方的来源标签（定时任务消息：「自动化任务」），点了开详情。 */
+  source?: { icon: LucideIconName; title: string; onClick: () => void };
 }): JSX.Element {
-  const { content, sessionId, findQuery, findActive, resolveImage, onOpenImage, onOpenSession } = props;
+  const { content, sessionId, findQuery, findActive, resolveImage, onOpenImage, onOpenSession, source } = props;
   const fullText = plainText(content);
   // 圈选元素发来的 picker XML 显示成属性卡片（对齐 Android / Mac / Chrome 插件）；
   // XML 之后的 [指令] 原话仍旧走普通气泡。
@@ -178,6 +184,12 @@ function UserBubble(props: {
   };
   return (
     <View className={styles.userRow}>
+      {source === undefined ? null : (
+        <View className={styles.bubbleSource} onClick={source.onClick}>
+          <Icon name={source.icon} className={styles.bubbleSourceGlyph} />
+          <Text className={styles.bubbleSourceText}>{source.title}</Text>
+        </View>
+      )}
       <ImageGallery refs={images} sessionId={sessionId} resolveImage={resolveImage} onOpenImage={onOpenImage} alignEnd />
       {files.map((file, index) => (
         <MessageFileCard key={file.attachmentId + ':' + index} file={file} />
@@ -467,14 +479,91 @@ function DetailCard(props: {
 }
 
 /**
+ * 自动化任务消息的详情（对齐 Mac `TurnTriggerDetailBody`，口径同自动化任务的规则页）：
+ * 每条提醒列出任务名称、计划时间、运行时间、任务内容与任务 ID。名称与时间规则按 schedule_id
+ * 去任务目录里查，查不到名称退回 schedule_id、不显示运行时间。
+ */
+function ScheduleTriggerDetail(props: {
+  reminders: ScheduleReminder[];
+  loadAutomations?: () => Promise<ManagedAutomation[]>;
+}): JSX.Element {
+  const [tasks, setTasks] = useState<ManagedAutomation[]>([]);
+  useEffect(() => {
+    let alive = true;
+    props.loadAutomations?.().then(
+      list => {
+        if (alive) setTasks(list);
+      },
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return (
+    <View>
+      {props.reminders.map((reminder, index) => {
+        const task = tasks.find(item => item.id === reminder.scheduleId);
+        const field = (title: string, value: string) => (
+          <DetailSection title={title}>
+            <Text className={styles.detailText} selectable userSelect>{value}</Text>
+          </DetailSection>
+        );
+        return (
+          <View key={reminder.scheduleId + reminder.occurrenceAt + index}>
+            {field(Strings.turnTriggerScheduleName, task?.title || reminder.scheduleId)}
+            {field(Strings.turnTriggerScheduleOccurrence, localDateTime(reminder.occurrenceAt))}
+            {task === undefined ? null : field(Strings.turnTriggerScheduleRule, automationRuleText(task))}
+            {field(Strings.turnTriggerScheduleInstruction, reminder.prompt)}
+            {field(Strings.turnTriggerScheduleTaskId, reminder.scheduleId)}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+/**
  * 轮次触发通知：是谁唤醒了这一轮（定时任务、后台任务、goal、webhook、插件……），
  * 一行摘要，全文在详情里看（对齐 Mac `PhoneTurnTriggerRow`）。
+ *
+ * 定时任务消息是用户自己的指令延后送达，按用户气泡画（对齐 Mac）：气泡正文是各条提醒的内容，
+ * 上方一行「自动化任务」来源标签，点开是任务详情弹层。
  */
-function TurnTriggerRow(props: { data: TurnTriggerNode; findQuery: string; findActive: boolean }): JSX.Element {
+function TurnTriggerRow(props: {
+  data: TurnTriggerNode;
+  sessionId: string;
+  findQuery: string;
+  findActive: boolean;
+  loadAutomations?: () => Promise<ManagedAutomation[]>;
+}): JSX.Element {
   const { data, findQuery, findActive } = props;
   const reply = React.useMemo(() => questionReplyPairs(data.content, data.source), [data]);
+  const reminders = React.useMemo(() => scheduleReminders(data.content, data.source), [data]);
   if (reply !== undefined) return <QuestionReplyRow pairs={reply} findQuery={findQuery} findActive={findActive} />;
   const presentation = turnTriggerPresentation(data.source);
+  if (reminders.length > 0) {
+    const prompts = reminders.map(reminder => reminder.prompt).join('\n\n');
+    return (
+      <UserBubble
+        content={[{ kind: 'text', text: prompts }]}
+        sessionId={props.sessionId}
+        findQuery={findQuery}
+        findActive={findActive}
+        source={{
+          icon: presentation.icon,
+          title: Strings[presentation.title],
+          onClick: () =>
+            openCardDetail({
+              icon: presentation.icon,
+              title: Strings[presentation.title],
+              copyText: prompts,
+              content: <ScheduleTriggerDetail reminders={reminders} loadAutomations={props.loadAutomations} />,
+            }),
+        }}
+      />
+    );
+  }
   const title = Strings[presentation.title];
   const text = plainText(data.content);
   return (
@@ -918,7 +1007,15 @@ export function MessageRow(props: MessageRowProps): JSX.Element {
         />
       );
     case 'turnTrigger':
-      return <TurnTriggerRow data={node.data} findQuery={findQuery} findActive={findActive} />;
+      return (
+        <TurnTriggerRow
+          data={node.data}
+          sessionId={sessionId}
+          findQuery={findQuery}
+          findActive={findActive}
+          loadAutomations={props.loadAutomations}
+        />
+      );
     case 'assistant':
       return (
         <AssistantRow

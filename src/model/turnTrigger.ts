@@ -41,6 +41,44 @@ export function turnTriggerPresentation(source: JsonElement | undefined): TurnTr
   }
 }
 
+/** 自动化任务一次投递里的一条提醒（`reminders_json` 的一项）。 */
+export interface ScheduleReminder {
+  scheduleId: string;
+  occurrenceAt: string;
+  prompt: string;
+}
+
+/**
+ * 自动化任务触发消息里投递的提醒（对齐 Mac `TurnTriggerNode.scheduleReminders`）：
+ * 正文里以 `reminders_json:` 开头的那一行是 JSON 数组；别的触发或解析失败返回空数组。
+ */
+export function scheduleReminders(content: ContentBlock[], source: JsonElement | undefined): ScheduleReminder[] {
+  if (str(jget(source, 'kind')) !== 'schedule') return [];
+  const prefix = 'reminders_json:';
+  for (const block of content) {
+    if (block.kind !== 'text') continue;
+    for (const line of block.text.split('\n')) {
+      if (!line.startsWith(prefix)) continue;
+      let list: JsonElement[] | undefined;
+      try {
+        list = arr(JSON.parse(line.slice(prefix.length)) as JsonElement);
+      } catch {
+        return [];
+      }
+      return (list ?? []).flatMap(item => {
+        const prompt = str(jget(item, 'reminder_prompt'));
+        if (prompt === undefined) return [];
+        return [{
+          scheduleId: str(jget(item, 'schedule_id')) ?? '',
+          occurrenceAt: str(jget(item, 'occurrence_at')) ?? '',
+          prompt,
+        }];
+      });
+    }
+  }
+  return [];
+}
+
 /**
  * 迟到的 `ask_user_question` 回答（0.2.0 web `question-reply` 节点）：从消息正文那份
  * `answer_to_pending_question` JSON 里读出「问题 → 答案」；别的消息返回 undefined

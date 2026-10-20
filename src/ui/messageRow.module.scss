@@ -17,6 +17,27 @@
   padding-top: 8px;
 }
 
+/* 定时任务气泡上方的来源标签：小号次要色，点开任务详情（对齐 Mac 的 trigger 标签）。 */
+.bubbleSource {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.bubbleSourceGlyph {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsh-color-text-faint);
+}
+
+.bubbleSourceText {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsh-color-text-faint);
+}
+
 .bubbleWrap {
   display: flex;
   flex-direction: column;
