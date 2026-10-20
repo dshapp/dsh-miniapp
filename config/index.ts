@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { defineConfig, type UserConfigExport } from '@tarojs/cli';
 import TsconfigPathsPlugin from 'tsconfig-paths-webpack-plugin';
 import devConfig from './dev';
@@ -60,6 +61,15 @@ export default defineConfig<'webpack5'>(async (merge, { command, mode }) => {
       },
       webpackChain(chain) {
         chain.resolve.plugin('tsconfig-paths').use(TsconfigPathsPlugin);
+        // marked 在模块加载时就用 \p{P}\p{S} 拼 'u' 正则，安卓微信的 JS 引擎不支持 Unicode
+        // 属性转义，会话页一加载 marked 就抛 SyntaxError、整页白屏。构建期展开成显式区间，
+        // 详见 config/expandUnicodePropertyLoader.cjs。
+        chain.module
+          .rule('marked-unicode-property')
+          .test(/[\\/]node_modules[\\/]marked[\\/].*\.(c|m)?js$/)
+          .enforce('pre')
+          .use('expand-unicode-property')
+          .loader(path.resolve(__dirname, 'expandUnicodePropertyLoader.cjs'));
       },
     },
     h5: {
