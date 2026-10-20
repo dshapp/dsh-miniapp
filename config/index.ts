@@ -23,7 +23,12 @@ export default defineConfig<'webpack5'>(async (merge, { command, mode }) => {
     copy: {
       // theme.json 要原样进 dist 根目录：app.json 的 themeLocation 以它为相对路径，
       // darkmode:true 而缺这个文件时微信会直接校验失败。
-      patterns: [{ from: 'src/theme.json', to: 'dist/theme.json' }],
+      patterns: [
+        { from: 'src/theme.json', to: 'dist/theme.json' },
+        // 转发/朋友圈的分享卡片图（见 src/framework/share.ts）。不走 import：小图会被
+        // url-loader 内联成 base64，而分享的 imageUrl 只认包内路径或网络地址。
+        { from: 'src/assets/share.png', to: 'dist/assets/share.png' },
+      ],
       options: {},
     },
     framework: 'react',

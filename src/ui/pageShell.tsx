@@ -4,11 +4,12 @@ import { getAppModel } from '../state/appModel';
 import { connectionBannerTone, connectionStore, connectionSummary } from '../state/connection';
 import { useStore } from '../state/store';
 import { useThemeClass } from '../framework/hook';
+import { useAppShare } from '../framework/share';
 import { CardDetailHost } from './cardDetail';
 import { ConnectionBanner } from './connectionBanner';
 
 /**
- * 页面外壳：主题 class + 全局连接横幅 + 全局卡片详情弹层。
+ * 页面外壳：主题 class + 全局连接横幅 + 全局卡片详情弹层 + 转发/朋友圈内容。
  *
  * 这三样原来都挂在 app.tsx 的 App 组件里，但 **Taro 的小程序端不会把 App 组件渲染出的
  * 节点放进任何页面**：小程序每个页面是独立的自定义组件，Taro 只把该页面自己的 React
@@ -24,6 +25,8 @@ import { ConnectionBanner } from './connectionBanner';
 export function PageShell(props: { children: React.ReactNode }): JSX.Element {
   const themeClass = useThemeClass();
   const connection = useStore(connectionStore);
+  // 每个页面都包这一层，转发/朋友圈的内容在这里统一给（页面配置里另需打开开关）。
+  useAppShare();
   return (
     <View className={(themeClass + ' dsh-app-root').trim()}>
       <ConnectionBanner
