@@ -50,6 +50,13 @@ import type { FileLinkTarget } from '../model/fileLink';
 import type { ChangedFileDiff, TurnChangesAddress, TurnChangesSummary } from '../model/turnChanges';
 import { HighlightedText } from './findHighlight';
 import { projectUserRefs } from '../model/userRefs';
+import {
+  XML_CARD_INLINE_LIMIT,
+  parseXmlMessageCards,
+  xmlCardsPlainText,
+  type XmlCard,
+  type XmlMessageCards,
+} from '../model/xmlMessageCards';
 import { MarkdownView } from './markdown';
 import { Icon, type LucideIconName } from './icon';
 import styles from './messageRow.module.scss';
@@ -146,7 +153,11 @@ function UserBubble(props: {
   onOpenSession?: (sessionId: string) => void;
 }): JSX.Element {
   const { content, sessionId, findQuery, findActive, resolveImage, onOpenImage, onOpenSession } = props;
-  const text = plainText(content);
+  const fullText = plainText(content);
+  // 圈选元素发来的 picker XML 显示成属性卡片（对齐 Android / Mac / Chrome 插件）；
+  // XML 之后的 [指令] 原话仍旧走普通气泡。
+  const cards = React.useMemo(() => parseXmlMessageCards(fullText), [fullText]);
+  const text = cards?.remainder ?? fullText;
   // 只有解得出的附件才排进气泡；解不出的按 Android 口径直接丢掉。
   const images = content
     .filter((block): block is Extract<ContentBlock, { kind: 'image' }> => block.kind === 'image')
@@ -169,6 +180,9 @@ function UserBubble(props: {
       {files.map((file, index) => (
         <MessageFileCard key={file.attachmentId + ':' + index} file={file} />
       ))}
+      {cards === undefined ? null : (
+        <XmlMessageCardStack parsed={cards} source={fullText} findQuery={findQuery} findActive={findActive} />
+      )}
       {/* 只发图片/文件时没有正文，不画空气泡。 */}
       {text.length === 0 ? null : (
         <View className={styles.bubbleWrap}>
@@ -207,6 +221,91 @@ function UserBubble(props: {
           ) : null}
         </View>
       )}
+    </View>
+  );
+}
+
+/**
+ * 用户消息里圈选元素 XML 的卡片栈（对齐 Android ui/component/XmlMessageCards.kt）：每个元素一张卡，
+ * 等宽标签头 + 每个属性一行「键 / 值」；内联只放前 XML_CARD_INLINE_LIMIT 张，其余进「查看全部」详情弹层。
+ * 卡片不是用户原话，不套气泡底色，单独一层描边表面、与用户消息同侧靠右。
+ * 点卡片弹「复制」，复制的是原始消息文本。
+ */
+function XmlMessageCardStack(props: {
+  parsed: XmlMessageCards;
+  source: string;
+  findQuery: string;
+  findActive: boolean;
+}): JSX.Element {
+  const { parsed, source, findQuery, findActive } = props;
+  const [copyMenu, setCopyMenu] = useState(false);
+  const shown = parsed.cards.slice(0, XML_CARD_INLINE_LIMIT);
+  const copy = async () => {
+    setCopyMenu(false);
+    try {
+      await Taro.setClipboardData({ data: source });
+    } catch {
+      void Taro.showToast({ title: Strings.copyFailed, icon: 'none' });
+    }
+  };
+  return (
+    <View className={styles.xmlCards}>
+      <View className={styles.xmlCardList} onClick={() => setCopyMenu(true)}>
+        {shown.map((card) => (
+          <XmlMessageCardView key={card.position} card={card} findQuery={findQuery} findActive={findActive} />
+        ))}
+      </View>
+      {copyMenu ? (
+        <View className={styles.copyMenu} onClick={() => void copy()}>
+          <Text className={styles.copyMenuText}>{Strings.copy}</Text>
+        </View>
+      ) : null}
+      {shown.length < parsed.cards.length ? (
+        <Text
+          className={styles.xmlCardsMore}
+          style={{ color: color_primary }}
+          onClick={() =>
+            openCardDetail({
+              icon: 'code',
+              title: parsed.rootTag,
+              copyText: xmlCardsPlainText(parsed.cards, Strings.xmlCardText),
+              content: (
+                <View className={styles.xmlCardDetail}>
+                  {parsed.cards.map((card) => (
+                    <XmlMessageCardView key={card.position} card={card} findQuery='' findActive={false} />
+                  ))}
+                </View>
+              ),
+            })
+          }
+        >
+          {fmt(Strings.xmlCardsViewAll, parsed.cards.length)}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/** 一个元素的卡：等宽标签头，然后每个属性一行；键右对齐贴住值（插件两列 grid 的读法）。 */
+function XmlMessageCardView(props: { card: XmlCard; findQuery: string; findActive: boolean }): JSX.Element {
+  const { card, findQuery, findActive } = props;
+  const rows: [string, string][] = card.attributes.map((attribute) => [attribute.name, attribute.value]);
+  if (card.text !== undefined) rows.push([Strings.xmlCardText, card.text]);
+  return (
+    <View className={styles.xmlCard}>
+      {/* 标签头保留等宽字体：它显示的确实是标记名，不是文案。 */}
+      <Text className={styles.xmlCardTag}>{card.tag}</Text>
+      {/* 键与值直接作两列 grid 的格子（不套行容器），键列宽按本卡最长的键自适应。 */}
+      <View className={styles.xmlCardBody}>
+        {rows.flatMap(([key, value], index) => [
+          <Text key={'k' + index} className={styles.xmlCardKey} selectable userSelect>
+            {findQuery.length > 0 ? <HighlightedText text={key} query={findQuery} active={findActive} /> : key}
+          </Text>,
+          <Text key={'v' + index} className={styles.xmlCardValue} selectable userSelect>
+            {findQuery.length > 0 ? <HighlightedText text={value} query={findQuery} active={findActive} /> : value}
+          </Text>,
+        ])}
+      </View>
     </View>
   );
 }

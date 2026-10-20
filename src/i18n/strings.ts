@@ -271,6 +271,9 @@ const TABLE = {
   operationFailed: ['Something went wrong. Please try again.', '操作失败，请重试。'],
   /** 图片取不到内容（与「打开失败」区分）。 */
   imageUnavailable: ['Image unavailable', '图片不可用'],
+  // 圈选元素 XML 的卡片（与 Android xmlCardsViewAll / xmlCardText、Mac、插件同文案）。
+  xmlCardsViewAll: ['View all %d elements', '查看全部 %d 个元素'],
+  xmlCardText: ['text', '文本'],
   /** 图片文件链接：取回失败，或系统里没有能看图片的应用。 */
   imageOpenFailed: ['Couldn’t open this image', '无法打开这张图片'],
   /** 权限档位的短名（上下文/权限胶囊）。 */

@@ -119,6 +119,88 @@
   color: var(--dsh-color-text);
 }
 
+/* 圈选元素 XML 的卡片（对齐 Android XmlMessageCards.kt / 插件 conversation.css .xml-card）：
+   卡片不是用户原话，所以不套气泡底色，单独一层描边表面；整体靠右，与用户消息同侧。 */
+.xmlCards {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: 92%;
+}
+
+.xmlCardList {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.xmlCardDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.xmlCard {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 0.5px solid var(--dsh-color-border);
+  border-radius: 10px;
+  background: var(--dsh-color-card);
+}
+
+.xmlCardDetail .xmlCard {
+  width: 100%;
+}
+
+/* 标签头保留等宽字体：它显示的确实是标记名，不是文案。 */
+.xmlCardTag {
+  display: block;
+  margin-bottom: 4px;
+  font-family: Menlo, monospace;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--dsh-color-text-sub);
+}
+
+/* 两列 grid：键右对齐贴住值，键列宽按本卡最长的键（插件 / Mac LabeledContent 的读法）。 */
+.xmlCardBody {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+  row-gap: 1px;
+  align-items: baseline;
+}
+
+.xmlCardKey {
+  font-family: Menlo, monospace;
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--dsh-color-text-faint);
+  text-align: right;
+  max-width: 40vw;
+  word-break: break-all;
+}
+
+.xmlCardValue {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--dsh-color-text);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* 「查看全部」挂在卡片列尾部。 */
+.xmlCardsMore {
+  font-size: 13px;
+  padding: 2px 0;
+}
+
 /* 图片附件：单张按 Android 的 280x220 收口，竖图不会撑满屏。 */
 .attachmentImage {
   max-width: 280px;
