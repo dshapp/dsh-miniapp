@@ -9,7 +9,7 @@ import type { ToolChatData, ToolResultData } from '../model/chatNode';
 import { imageReferences, lenientImageRefs, readImageCard, type ImageCard } from '../model/imageCards';
 import { openCardDetail } from './cardDetail';
 import { toolRowModel } from '../model/toolRow';
-import { AttachmentImage } from './attachmentImage';
+import { AttachmentImage, useImageGroup, type OpenImage } from './attachmentImage';
 import type { ToolRowState, ToolRowVariant } from '../model/toolRow';
 import { HighlightedText } from './findHighlight';
 import { Icon, type LucideIconName } from './icon';
@@ -162,7 +162,7 @@ export function ToolCard(props: {
   findActive?: boolean;
   sessionId?: string;
   resolveImage?: (attachmentId: string, sessionId: string) => Promise<string | undefined>;
-  onOpenImage?: (localPath: string, name?: string) => void;
+  onOpenImage?: OpenImage;
   /** 子调用递归深度；根调用是 0。 */
   depth?: number;
 }): JSX.Element {
@@ -271,18 +271,21 @@ function ToolImageCard(props: {
   card: ImageCard;
   sessionId: string;
   resolveImage?: (attachmentId: string, sessionId: string) => Promise<string | undefined>;
-  onOpenImage?: (localPath: string, name?: string) => void;
+  onOpenImage?: OpenImage;
 }): JSX.Element {
+  const group = useImageGroup();
   return (
     <View className={styles.toolImageCard}>
       <Text className={styles.toolImagePath}>{props.card.path}</Text>
-      {props.card.images.map(ref => (
+      {props.card.images.map((ref, index) => (
         <AttachmentImage
           key={ref.attachmentId}
           sessionId={props.sessionId}
           attachment={{ attachmentId: ref.attachmentId, name: ref.name } as unknown as JsonValue}
           resolveImage={props.resolveImage}
           onOpenImage={props.onOpenImage}
+          group={group}
+          groupIndex={index}
         />
       ))}
     </View>
@@ -331,9 +334,11 @@ export function ToolResultView(props: {
   result: ToolResultData;
   sessionId?: string;
   resolveImage?: (attachmentId: string, sessionId: string) => Promise<string | undefined>;
-  onOpenImage?: (localPath: string, name?: string) => void;
+  onOpenImage?: OpenImage;
 }): JSX.Element {
   const { result } = props;
+  // 钩子要在任何提前返回之前：工具结果里的几张图共用一组，点开可左右滑。
+  const group = useImageGroup();
   const card = str(jget(result.resultView, 'card'));
   if (result.isError) {
     return <MonospaceBlock text={toolResultText(result)} className={styles.errorBlock} />;
@@ -345,13 +350,15 @@ export function ToolResultView(props: {
     if (refs.length > 0) {
       return (
         <View className={styles.resultColumn}>
-          {refs.map(ref => (
+          {refs.map((ref, index) => (
             <AttachmentImage
               key={ref.attachmentId}
               sessionId={sessionId}
               attachment={{ attachmentId: ref.attachmentId, name: ref.name } as unknown as JsonValue}
               resolveImage={props.resolveImage}
               onOpenImage={props.onOpenImage}
+              group={group}
+              groupIndex={index}
             />
           ))}
           {result.content.some(block => block.kind === 'text') ? (

@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Text, View } from '@tarojs/components';
 import { Strings } from '../i18n/strings';
 import { jget, str } from '../model/json';
 import type { JsonValue } from '../model/json';
+import { previewUrls } from '../model/imagePreview';
 import { Icon } from './icon';
 import styles from './messageRow.module.scss';
 
@@ -25,14 +26,42 @@ export function decodeAttachmentRef(value: JsonValue | undefined): AttachmentRef
   return name === undefined || name.length === 0 ? { attachmentId } : { attachmentId, name };
 }
 
+/**
+ * 点开图片：localPath 是被点的那张，urls 是同组可左右滑动的全部本地路径（含 localPath）。
+ * 页面拿它调微信原生预览（Taro.previewImage），放大、拖动、左右切换都由微信负责。
+ */
+export type OpenImage = (localPath: string, name?: string, urls?: string[]) => void;
+
+/**
+ * 同一组图片（一条消息的相册 / 一个工具结果里的几张）共用的登记簿：
+ * 每张图取到本地路径后按自己的下标登记，点开时整组一起交给原生预览。
+ */
+export interface ImageGroup {
+  register(index: number, localPath: string | undefined): void;
+  urls(current: string): string[];
+}
+
+/** 在相册类组件里建一个登记簿；用 ref 存，登记不触发重渲染。 */
+export function useImageGroup(): ImageGroup {
+  const paths = useRef<Array<string | undefined>>([]);
+  const register = useCallback((index: number, localPath: string | undefined) => {
+    paths.current[index] = localPath;
+  }, []);
+  const urls = useCallback((current: string) => previewUrls(paths.current, current), []);
+  return useRef<ImageGroup>({ register, urls }).current;
+}
+
 /** 用户气泡、助手附件与工具结果共用的图片：先从宿主拿本地临时路径，拿到前先摆一个骨架。 */
 export function AttachmentImage(props: {
   sessionId: string;
   attachment: JsonValue;
   resolveImage?: (attachmentId: string, sessionId: string) => Promise<string | undefined>;
-  onOpenImage?: (localPath: string, name?: string) => void;
+  onOpenImage?: OpenImage;
   /** 一组多图时缩成小图（Web/Android 的 compact 相册）。 */
   compact?: boolean;
+  /** 所在的图片组与组内下标：点开时整组进原生预览，可左右滑动。 */
+  group?: ImageGroup;
+  groupIndex?: number;
 }): JSX.Element {
   const ref = decodeAttachmentRef(props.attachment);
   const attachmentId = ref === undefined ? undefined : ref.attachmentId;
@@ -71,6 +100,14 @@ export function AttachmentImage(props: {
     };
   }, [attachmentId, props.sessionId]);
 
+  // 取到（或换掉、失败）后同步到组里，点开时同组的其它图才能一起进预览。
+  const group = props.group;
+  const groupIndex = props.groupIndex ?? 0;
+  useEffect(() => {
+    group?.register(groupIndex, localPath);
+  }, [group, groupIndex, localPath]);
+  useEffect(() => () => group?.register(groupIndex, undefined), [group, groupIndex]);
+
   if (ref === undefined) return <View />;
   if (failed) {
     return (
@@ -93,7 +130,9 @@ export function AttachmentImage(props: {
       className={props.compact === true ? styles.attachmentImage + ' ' + styles.attachmentImageCompact : styles.attachmentImage}
       src={localPath}
       mode="widthFix"
-      onClick={openImage === undefined ? undefined : () => openImage(localPath, ref.name)}
+      onClick={openImage === undefined
+        ? undefined
+        : () => openImage(localPath, ref.name, group === undefined ? [localPath] : group.urls(localPath))}
     />
   );
 }
@@ -107,9 +146,10 @@ export function ImageGallery(props: {
   refs: JsonValue[];
   sessionId: string;
   resolveImage?: (attachmentId: string, sessionId: string) => Promise<string | undefined>;
-  onOpenImage?: (localPath: string, name?: string) => void;
+  onOpenImage?: OpenImage;
   alignEnd?: boolean;
 }): JSX.Element | null {
+  const group = useImageGroup();
   const valid = props.refs.filter((value) => decodeAttachmentRef(value) !== undefined);
   if (valid.length === 0) return null;
   const compact = valid.length > 1;
@@ -123,6 +163,8 @@ export function ImageGallery(props: {
           resolveImage={props.resolveImage}
           onOpenImage={props.onOpenImage}
           compact={compact}
+          group={group}
+          groupIndex={index}
         />
       ))}
     </View>

@@ -154,6 +154,15 @@ export default function ChatPage(): JSX.Element {
     });
   }, [model]);
 
+  /**
+   * 转写里的图片（用户发送的、助手回复的、工具结果里的）点开：交给微信原生图片预览，
+   * 双指放大、拖动、左右切换同组图片都由微信负责。urls 是同组已取到的本地路径。
+   */
+  const openImage = React.useCallback((localPath: string, _name?: string, urls?: string[]): void => {
+    const group = urls === undefined || urls.length === 0 ? [localPath] : urls;
+    Taro.previewImage({ urls: group, current: localPath }).catch(() => toast(Strings.imageOpenFailed));
+  }, []);
+
   // 进页 open、退页 close。标题不再写进微信导航栏：顶栏已经是我们自己画的。
   // 没有配对资料时 open 会同步抛错（建不了传输）：吞掉它改画提示，否则 effect 里的异常会让整页不再更新。
   const [openError, setOpenError] = React.useState<string | undefined>(undefined);
@@ -472,7 +481,7 @@ export default function ChatPage(): JSX.Element {
           // （对齐 Android store.isTurnProcessExpanded / setTurnProcessExpanded）。
           turnProcessExpanded={spec => store.expandedProcessStore(spec)}
           onToggleTurnProcess={spec => store.setTurnProcessExpanded(spec, !store.isTurnProcessExpanded(spec))}
-          onOpenImage={localPath => { void Taro.previewImage({ urls: [localPath], current: localPath }); }}
+          onOpenImage={openImage}
         />
       </View>,
     );
@@ -495,6 +504,9 @@ export default function ChatPage(): JSX.Element {
           onOpenFileLink={target => openFileLink(target.path, target.sessionId ?? sessionId, target.image === true)}
           referencedSessions={referencedSessions}
           onOpenSession={openSession}
+          // 插队消息带的图也要能显示、能点开（与转写里的用户气泡同一条通路）。
+          resolveImage={(attachmentId, sid) => model.attachmentImage(sid, attachmentId)}
+          onOpenImage={openImage}
         />
       </View>,
     );

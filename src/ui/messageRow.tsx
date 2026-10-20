@@ -47,7 +47,7 @@ import {
   turnTotalTokens,
 } from '../model/format';
 import { JsonTree, NoticeRow, ThinkCard, ToolCard } from './cards';
-import { ImageGallery, decodeAttachmentRef } from './attachmentImage';
+import { ImageGallery, decodeAttachmentRef, type OpenImage } from './attachmentImage';
 export { AttachmentImage, decodeAttachmentRef, type AttachmentRef } from './attachmentImage';
 import { ChangedFilesCard } from './changedFilesCard';
 import type { FileLinkTarget } from '../model/fileLink';
@@ -89,7 +89,7 @@ export interface MessageRowProps {
   /** 拉取图片附件的本地临时路径；返回 undefined 时显示占位骨架 */
   resolveImage?: (attachmentId: string, sessionId: string) => Promise<string | undefined>;
   /** 点击图片附件时打开大图 */
-  onOpenImage?: (localPath: string, name?: string) => void;
+  onOpenImage?: OpenImage;
   /** 过程折叠的展开态真相源：展开后 store 会把这轮的思考/工具行放回转写。 */
   turnProcessExpanded?: (spec: TurnProcessSpec) => Store<boolean>;
   onToggleTurnProcess?: (spec: TurnProcessSpec) => void;
