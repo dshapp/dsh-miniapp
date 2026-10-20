@@ -104,6 +104,8 @@ const TABLE = {
   noWorkspace: ['No workspace', '不指定工作区'],
   toolInput: ['Input', '输入'],
   toolOutput: ['Output', '输出'],
+  /** 详情弹层里 run_code 派发的子调用列表标题（Mac `subcalls`）。 */
+  subcalls: ['Subcalls (%d)', '子调用(%d)'],
   thinking: ['Thinking', '思考过程'],
   compacted: ['Context compacted', '上下文已压缩'],
   modelRetry: ['Model retried', '模型重试'],

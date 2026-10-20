@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Text, View } from '@tarojs/components';
 import { color_bad, color_good, color_text_sub, color_warning } from '../const';
-import { Strings } from '../i18n/strings';
+import { Strings, fmt } from '../i18n/strings';
 import { arr, int, isArray, isObject, jget, jsonScalarText, prettyJson, str } from '../model/json';
 import type { JsonValue } from '../model/json';
 import { toolResultText } from '../model/chatNode';
 import type { ToolChatData, ToolResultData } from '../model/chatNode';
 import { imageReferences, lenientImageRefs, readImageCard, type ImageCard } from '../model/imageCards';
-import { openCardDetail } from './cardDetail';
+import { openCardDetail, pushCardDetail } from './cardDetail';
 import { toolRowModel } from '../model/toolRow';
 import { AttachmentImage, useImageGroup, type OpenImage } from './attachmentImage';
 import type { ToolRowState, ToolRowVariant } from '../model/toolRow';
@@ -151,10 +151,16 @@ export function ThinkCard(props: {
   );
 }
 
-/** 子调用最多缩进到第 8 层（对齐 Android Cards.kt 的 depth < 8）。 */
-const MAX_TOOL_DEPTH = 8;
+/** 子调用详情最多再往下点 64 层（防御异常的环/超深树，对齐 Android Cards.kt）。 */
+const MAX_TOOL_DEPTH = 64;
 
-/** 工具调用卡片：一行标题 + 状态点，点开看参数、图片与结果；子调用递归缩进挂在下面。 */
+/**
+ * 工具调用卡片：一行标题 + 状态点，点开看参数、图片与结果。
+ *
+ * run_code 里派发的子调用对齐 Mac：聊天记录里只画外层这一行，子调用不在行下展开
+ * （一次 Code Mode 往往派发几十个，铺开后细节太多）；点开详情，在输入/输出后面列
+ * 「子调用(N)」，每个子调用是一行卡片，点开叠一层它自己的详情，关闭回到父详情。
+ */
 export function ToolCard(props: {
   data: ToolChatData;
   cwd?: string;
@@ -165,11 +171,14 @@ export function ToolCard(props: {
   onOpenImage?: OpenImage;
   /** 子调用递归深度；根调用是 0。 */
   depth?: number;
+  /** 详情弹层里的子调用行：只画这一行（不带 read_image 卡身），点开叠一层详情。 */
+  headerOnly?: boolean;
 }): JSX.Element {
   const { data, cwd, findQuery = '', findActive = false } = props;
   const sessionId = props.sessionId ?? '';
   const depth = props.depth ?? 0;
-  const imageCard = readImageCard(data);
+  const headerOnly = props.headerOnly === true;
+  const imageCard = headerOnly ? undefined : readImageCard(data);
   const model = toolRowModel(data, cwd);
   const rawTitle = model.errorSummary ?? model.summary;
   const title = rawTitle.length > 0 ? rawTitle : data.name;
@@ -183,7 +192,7 @@ export function ToolCard(props: {
   if (data.result !== undefined) parts.push(toolResultText(data.result));
   const copyText = parts.join('\n\n');
   const openDetail = (): void =>
-    openCardDetail({
+    (headerOnly ? pushCardDetail : openCardDetail)({
       icon: toolVariantIcon(model.variant),
       title: detailTitle,
       copyText,
@@ -204,22 +213,23 @@ export function ToolCard(props: {
               />
             </DetailSection>
           )}
-          {/* 展开态里逐层列出子调用（对齐 Android Cards.kt detail 分支的 subCalls）。 */}
-          {depth >= MAX_TOOL_DEPTH
-            ? null
-            : data.subCalls.map(child => (
-                <DetailSection key={child.callId} title={child.name}>
-                  {child.argsRaw.length > 0 ? <MonospaceBlock text={prettyJson(child.argsRaw)} /> : null}
-                  {child.result === undefined ? null : (
-                    <ToolResultView
-                      result={child.result}
-                      sessionId={sessionId}
-                      resolveImage={props.resolveImage}
-                      onOpenImage={props.onOpenImage}
-                    />
-                  )}
-                </DetailSection>
+          {data.subCalls.length === 0 || depth >= MAX_TOOL_DEPTH ? null : (
+            <View>
+              <Text className={styles.subCallsTitle}>{fmt(Strings.subcalls, data.subCalls.length)}</Text>
+              {data.subCalls.map(child => (
+                <ToolCard
+                  key={child.callId}
+                  data={child}
+                  cwd={cwd}
+                  sessionId={sessionId}
+                  resolveImage={props.resolveImage}
+                  onOpenImage={props.onOpenImage}
+                  depth={depth + 1}
+                  headerOnly
+                />
               ))}
+            </View>
+          )}
         </View>
       ),
     });
@@ -245,23 +255,6 @@ export function ToolCard(props: {
       {imageCard !== undefined && sessionId.length > 0 ? (
         <ToolImageCard card={imageCard} sessionId={sessionId} resolveImage={props.resolveImage} onOpenImage={props.onOpenImage} />
       ) : null}
-      {/* 子调用树：run_code 里派发的嵌套调用（子智能体调度等）只有在这里才看得见。 */}
-      {depth >= MAX_TOOL_DEPTH
-        ? null
-        : data.subCalls.map(child => (
-            <View key={child.callId} className={styles.subCall}>
-              <ToolCard
-                data={child}
-                cwd={cwd}
-                findQuery={findQuery}
-                findActive={findActive}
-                sessionId={sessionId}
-                resolveImage={props.resolveImage}
-                onOpenImage={props.onOpenImage}
-                depth={depth + 1}
-              />
-            </View>
-          ))}
     </View>
   );
 }

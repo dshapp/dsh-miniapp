@@ -348,10 +348,15 @@
   color: var(--dsh-color-text-faint);
 }
 
-/* 子调用树：每层往右缩进一点（对齐 Android Cards.kt:425-431 的 padding(start = 18.dp)，
-   不再额外画左边框/外边距）。 */
-.subCall {
-  padding-left: 18px;
+/* 详情弹层里 run_code 子调用列表的标题「子调用(N)」，下面每个子调用是一行卡片
+   （对齐 Mac ToolSubCallsSection / Android Cards.kt 详情分支）。 */
+.subCallsTitle {
+  display: block;
+  margin-top: 16px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsh-color-text-sub);
 }
 
 /* read_image 卡身：路径标签 + 图片（对齐 Android ToolImageCard）。 */

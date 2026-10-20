@@ -37,6 +37,13 @@
 
 .body {
   flex: 1;
+  /* 不加这句，flex 子项的最小高度是内容高度：scroll-view 会被撑得比弹层还高，
+     超出屏幕的部分（如子调用列表）被裁掉、根本滚不到。 */
+  min-height: 0;
   padding: 16px;
   box-sizing: border-box;
+}
+
+.bodyEnd {
+  height: calc(24px + env(safe-area-inset-bottom));
 }
