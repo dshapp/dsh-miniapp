@@ -1,6 +1,6 @@
 import './app.scss';
 import React from 'react';
-import { useDidHide, useDidShow, useLaunch } from '@tarojs/taro';
+import { useDidHide, useDidShow, useError, useLaunch } from '@tarojs/taro';
 import { AppContext, useAppState } from './state';
 import { getAppModel } from './state/appModel';
 import { settings } from './state/settings';
@@ -32,6 +32,13 @@ function App(props: { children?: React.ReactNode }): JSX.Element {
     // 官方也建议放在 onLaunch：那时胶囊已经就位（见 framework/navbar.ts 的公式）。
     measureNavBar();
     getAppModel().connectCurrent();
+  });
+
+  // Taro 生产包的 PageWrapper 会把页面渲染/模块初始化异常吞掉、只渲染一个空 root，并且
+  // 只转给 App.onError，不打任何日志——真机上表现为一整页空白、vConsole 里什么都没有。
+  // 这里把它打出来，下次真机白屏至少能在 vConsole 的 Error 里看到原因。
+  useError(error => {
+    console.error('[app onError]', error);
   });
 
   useDidShow(() => {
