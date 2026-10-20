@@ -3,6 +3,8 @@ import { Text, View } from '@tarojs/components';
 import Taro, { useDidShow, usePullDownRefresh, useReachBottom } from '@tarojs/taro';
 import { Strings } from '../../i18n/strings';
 import { openPage, pageRoutes } from '../../framework/page';
+import { openPairing } from '../../framework/pairingEntry';
+import { scanQrCode } from '../../framework/scan';
 
 import { ActionMenu, anchorFromEvent } from '../../ui/actionMenu';
 import type { ActionMenuAnchor, ActionMenuItem } from '../../ui/actionMenu';
@@ -409,7 +411,18 @@ export default function SessionListPage(): JSX.Element {
   if (profilesState.profiles.length === 0) {
     // 引导页自己就是一整屏（含顶栏），不要再套一层列表页的容器：那层还留着
     // 给底部归档入口的 72px 内边距，套上去会多出一截空白。
-    return <Onboarding onPair={() => openPage(pageRoutes.PAIRING)} />;
+    // 「扫描二维码」就地拉起相机，扫到之后才进配对页走「校验 -> 确认电脑名」；
+    // 取消就留在引导页。相机不可用时直接送去配对页的粘贴态并说明原因。
+    return (
+      <Onboarding
+        onScan={() => scanQrCode(outcome => {
+          if (outcome.kind === 'scanned') openPairing({ payload: outcome.text });
+          else if (outcome.kind === 'unavailable') openPairing({ mode: 'paste', cameraUnavailable: true });
+        })}
+        // 「手动输入配对串」直接进粘贴态、焦点落在输入框里，不先经过扫码态。
+        onPaste={() => openPairing({ mode: 'paste' })}
+      />
+    );
   }
 
   return (

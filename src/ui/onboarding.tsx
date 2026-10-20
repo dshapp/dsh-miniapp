@@ -9,11 +9,12 @@ import styles from './onboarding.module.scss';
  * 未配对时的引导页。
  *
  * 对应 Android 的 OnboardingScreen：手机端只有加密隧道一条路，能连哪台 Mac 完全由
- * 配对资料决定，所以「一台都没配」时不能装作连得上——这里只做一件事，把用户送去
- * 配对页（扫码或粘贴 dshm:// 配对串）。
+ * 配对资料决定，所以「一台都没配」时不能装作连得上——这里只做一件事，带用户去配对：
+ * 「扫描二维码」直接拉起相机（不经过配对页再点一次），「粘贴配对串」进配对页的粘贴态。
  */
 export interface OnboardingProps {
-  onPair: () => void;
+  onScan: () => void;
+  onPaste: () => void;
 }
 
 export function Onboarding(props: OnboardingProps): JSX.Element {
@@ -27,10 +28,10 @@ export function Onboarding(props: OnboardingProps): JSX.Element {
         <Icon name='qr-code' className={styles.glyph} />
         <Text className={styles.title}>{Strings.onboardingTitle}</Text>
         <Text className={styles.body}>{Strings.onboardingBody}</Text>
-        <View className={styles.primary} onClick={props.onPair}>
+        <View className={styles.primary} onClick={props.onScan}>
           <Text className={styles.primaryText}>{Strings.scanQR}</Text>
         </View>
-        <Text className={styles.secondary} onClick={props.onPair}>
+        <Text className={styles.secondary} onClick={props.onPaste}>
           {Strings.pastePairing}
         </Text>
       </View>

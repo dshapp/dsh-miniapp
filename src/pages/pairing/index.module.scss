@@ -166,3 +166,38 @@
   font-size: 15px;
   color: var(--dsh-color-primary);
 }
+
+/* 点「连接」之后的加载遮罩：盖住整页、挡住点击，中间一块转圈 + 「连接中…」。 */
+.loadingMask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.loadingBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-width: 120px;
+  padding: 20px 24px;
+  border-radius: 12px;
+  background: var(--dsh-color-card);
+}
+
+.loadingGlyph {
+  font-size: 32px;
+  color: var(--dsh-color-primary);
+}
+
+.loadingText {
+  font-size: 14px;
+  color: var(--dsh-color-text);
+}
