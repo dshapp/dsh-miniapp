@@ -168,9 +168,6 @@ const TABLE = {
   pin: ['Pin', '置顶'],
   unpin: ['Unpin', '取消置顶'],
   loadEarlier: ['Load earlier', '加载更早'],
-  processMessages: ['%d replies', '%d 条回复'],
-  processTools: ['%d tool calls', '%d 次工具调用'],
-  processSubagents: ['%d subagents', '%d 个子智能体'],
   turnTriggerRequest: ['Execution requested', '收到执行请求'],
   turnTriggerGoal: ['Continuing goal', '继续执行目标'],
   turnTriggerAgent: ['Task message received', '收到任务消息'],
@@ -425,6 +422,7 @@ const TABLE = {
   // 轮次结局（web `message.stopped` / `message.turnProcess.*`，文案以 Mac L10n 为准）。
   turnStopped: ['Stopped', '已停止'],
   turnFailed: ['Failed', '处理失败'],
+  turnProcessCompleted: ['Completed', '已完成'],
   turnProcessTook: ['Completed in %s', '已完成，用时 %s'],
   // 运行中底部状态（web `message.stepProcess.*`，文案以 Mac L10n 为准）。
   activityThinking: ['Analyzing the request', '正在分析请求'],

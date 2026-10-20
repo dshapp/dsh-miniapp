@@ -80,8 +80,9 @@ export default function ChatPage(): JSX.Element {
   const store = React.useMemo<SessionStore>(() => model.ensureSession(sessionId), [model, sessionId]);
 
   const nodes = useStore(store.nodesStore);
-  // 运行态单独订阅：底部状态行随它出现/消失。
+  // 运行态单独订阅：输入框上方的状态条随它出现/消失；刚发出、主机还没开轮时也要亮。
   useStore(store.runningStore);
+  useStore(store.pendingSubmissionsStore);
   const turnRail = useStore(store.turnRailStore);
   const hasMore = useStore(store.hasMoreStore);
   const loadingHistory = useStore(store.loadingHistoryStore);
@@ -499,15 +500,8 @@ export default function ChatPage(): JSX.Element {
     );
   });
 
-  // 运行中底部状态行跟在转写最后（查找态不画）。
+  // 运行状态条（查找态不画）：不进转写，见下方输入框正上方的那条。
   const runningStatus = finding ? undefined : store.runningStatus;
-  if (runningStatus !== undefined) {
-    rows.push(
-      <View key='running-status' className={styles.row}>
-        <RunningStatusRow toolName={runningStatus.toolName} startedAt={runningStatus.startedAt} />
-      </View>,
-    );
-  }
 
   const emptyByFind = finding && findQuery.trim().length > 0 && visibleNodes.length === 0 && pendingSteering.length === 0;
   const transcriptEmpty = nodes.length === 0 && pendingSteering.length === 0;
@@ -705,6 +699,18 @@ export default function ChatPage(): JSX.Element {
               <Icon name='arrow-down' className={styles.toBottomGlyph} />
             </View>
           ) : null}
+        </View>
+
+        {/*
+          运行状态条（对齐 Mac RunningStatusRow）：固定在输入框正上方、滚动区之外，不随记录滚动。
+          有没有轮次在跑都占同一高度，出现/消失不会推动记录，也不会盖住最后一行。
+        */}
+        <View className={styles.runningStatusBar}>
+          <View className={styles.runningStatusInner}>
+            {runningStatus === undefined ? null : (
+              <RunningStatusRow toolName={runningStatus.toolName} startedAt={runningStatus.startedAt} />
+            )}
+          </View>
         </View>
 
         <ComposerBar

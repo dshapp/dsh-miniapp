@@ -5,6 +5,7 @@ import { color_bad, color_good, color_primary, color_text_faint, color_text_sub,
 import { Strings, fmt } from '../i18n/strings';
 import { questionReplyPairs, turnTriggerPresentation } from '../model/turnTrigger';
 import { liveActivityKey } from '../model/toolRow';
+import { useBreathe, withBreathe } from './breathe';
 import type { QuestionReplyPair } from '../model/questionFlow';
 import { Store, useStore } from '../state/store';
 import { openCardDetail } from './cardDetail';
@@ -16,6 +17,7 @@ import {
   chatNodeRendersRow,
   fileAttachmentRefs,
   plainText,
+  turnProcessFoldable,
 } from '../model/chatNode';
 import type {
   AssistantBlock,
@@ -39,7 +41,9 @@ import {
   formatDuration,
   formatLatencySeconds,
   formatTokensPerSecond,
+  runningStatusText,
   tokenCount,
+  turnProcessLabel,
   turnTotalTokens,
 } from '../model/format';
 import { JsonTree, NoticeRow, ThinkCard, ToolCard } from './cards';
@@ -86,8 +90,6 @@ export interface MessageRowProps {
   resolveImage?: (attachmentId: string, sessionId: string) => Promise<string | undefined>;
   /** 点击图片附件时打开大图 */
   onOpenImage?: (localPath: string, name?: string) => void;
-  /** 轮次处理摘要（TurnProcess 行用）；缺省时该行不展开 */
-  turnProcessSummary?: (turn: number) => string | undefined;
   /** 过程折叠的展开态真相源：展开后 store 会把这轮的思考/工具行放回转写。 */
   turnProcessExpanded?: (spec: TurnProcessSpec) => Store<boolean>;
   onToggleTurnProcess?: (spec: TurnProcessSpec) => void;
@@ -324,6 +326,9 @@ function AssistantRow(props: {
 }): JSX.Element {
   const { step, sessionId, findQuery, findActive, resolveImage, onOpenImage } = props;
   const blocks = step.blocks.filter((block): block is AssistantBlock => block !== null);
+  // 仍在流式输出的思考：step 还在跑、且这段 reasoning 是它的最后一个 block；
+  // 后面一出现正文/工具调用，或 step 结算，就不再呼吸（对齐扩展 updateAssistantNode）。
+  const streamingBlock = step.status === 'running' ? step.blocks[step.blocks.length - 1] : undefined;
   // 连续图片块合成一组相册（对齐 Android ImageGallery 的相邻分组）：
   // 组首记下 refs，组内其余下标跳过。
   const galleries = new Map<number, JsonValue[]>();
@@ -362,7 +367,15 @@ function AssistantRow(props: {
           );
         }
         if (block.kind === 'reasoning') {
-          return <ThinkCard key={index} text={block.text} findQuery={findQuery} findActive={findActive} />;
+          return (
+            <ThinkCard
+              key={index}
+              text={block.text}
+              findQuery={findQuery}
+              findActive={findActive}
+              running={block === streamingBlock}
+            />
+          );
         }
         if (block.kind === 'image') {
           if (gallerySkip.has(index)) return null;
@@ -379,9 +392,6 @@ function AssistantRow(props: {
         // tool-call / other 由独立的 Tool 行或未知 surface 承载，这里不重复画。
         return null;
       })}
-      {step.status === 'running' && step.blocks.length === 0 ? (
-        <Icon name='loader-circle' spin className={styles.loadingGlyph} style={{ color: color_primary }} />
-      ) : null}
     </View>
   );
 }
@@ -399,10 +409,15 @@ function CardHeader(props: {
   onClick?: () => void;
 }): JSX.Element {
   const { name, summary, suffix, running = false, tint = color_text_sub, findQuery, findActive, expanded, onClick } = props;
+  // 进行中不换成转圈：保留本行自己的图标，整行（图标 + 标题 + 附注）呼吸；行本身不画背景。
+  const breathe = useBreathe(running);
   return (
-    <View className={onClick === undefined ? styles.row : styles.row + ' ' + styles.rowClickable} onClick={onClick}>
-      {/* 进行中不再换成转圈的 loader-circle：保留本行自己的图标，只让它闪烁。 */}
-      <Icon name={name} blink={running} className={styles.rowGlyph} style={{ color: tint }} />
+    <View
+      className={withBreathe(onClick === undefined ? styles.row : styles.row + ' ' + styles.rowClickable, breathe)}
+      style={breathe.style}
+      onClick={onClick}
+    >
+      <Icon name={name} className={styles.rowGlyph} style={{ color: tint }} />
       <HighlightedText className={styles.rowTitle} text={summary} query={findQuery} active={findActive} />
       {suffix === undefined || suffix.length === 0 ? null : <Text className={styles.rowSuffix}>{suffix}</Text>}
       {expanded === undefined ? null : <Icon name={expanded ? 'chevron-down' : 'chevron-right'} className={styles.caret} />}
@@ -541,11 +556,11 @@ function UnknownSurfaceRow(props: { data: UnknownSurfaceNode }): JSX.Element {
   );
 }
 
-/** 工作流状态的字形与语义色；与 Android 的 workflowIcon 一一对应（进行中改闪烁）。 */
-function workflowIcon(status: WorkflowRunStatus): { name: LucideIconName; blink?: boolean } {
+/** 工作流状态的字形；与 Android 的 workflowIcon 一一对应（进行中整行呼吸，见 CardHeader）。 */
+function workflowIcon(status: WorkflowRunStatus): { name: LucideIconName } {
   switch (status) {
     case 'running':
-      return { name: 'refresh-cw', blink: true };
+      return { name: 'refresh-cw' };
     case 'completed':
       return { name: 'check' };
     case 'failed':
@@ -592,13 +607,15 @@ function WorkflowRunCard(props: { data: WorkflowRunData }): JSX.Element {
   const { data } = props;
   const [expanded, setExpanded] = useState(false);
   const title = data.name.length > 0 ? data.name : Strings.workflowUntitled;
+  // 运行中的成员行与卡片头同一呼吸相位。
+  const memberBreathe = useBreathe(data.phases.some(phase => phase.members.some(member => member.status === 'running')));
   return (
     <View className={styles.card}>
       <CardHeader
         name={workflowIcon(data.status).name}
         summary={title}
         suffix={workflowStatusLabel(data.status)}
-        running={workflowIcon(data.status).blink === true}
+        running={data.status === 'running'}
         tint={workflowTint(data.status)}
         expanded={expanded}
         onClick={() => setExpanded((value) => !value)}
@@ -611,10 +628,13 @@ function WorkflowRunCard(props: { data: WorkflowRunData }): JSX.Element {
                 <Text className={styles.phaseLabel}>{phase.phase}</Text>
               )}
               {phase.members.map((member, memberIndex) => (
-                <View key={member.seq + ':' + memberIndex} className={styles.memberRow}>
+                <View
+                  key={member.seq + ':' + memberIndex}
+                  className={member.status === 'running' ? withBreathe(styles.memberRow, memberBreathe) : styles.memberRow}
+                  style={member.status === 'running' ? memberBreathe.style : undefined}
+                >
                   <Icon
                     name={workflowIcon(member.status).name}
-                    blink={workflowIcon(member.status).blink}
                     className={styles.memberGlyph}
                     style={{ color: workflowTint(member.status) }}
                   />
@@ -629,90 +649,69 @@ function WorkflowRunCard(props: { data: WorkflowRunData }): JSX.Element {
   );
 }
 
-/** 把 spec 的计数摊成一行行文案，展开 TurnProcess 时逐条列出。 */
-function processSummaryParts(spec: TurnProcessSpec): string[] {
-  const parts: string[] = [];
-  if (spec.messageCount > 0) parts.push(fmt(Strings.processMessages, spec.messageCount));
-  if (spec.toolCallCount > 0) parts.push(fmt(Strings.processTools, spec.toolCallCount));
-  if (spec.subagentCount > 0) parts.push(fmt(Strings.processSubagents, spec.subagentCount));
-  return parts;
-}
-
 /**
- * 过程折叠控件：一轮里的思考与工具调用折在它后面。
+ * 轮次折叠头（对齐 Mac `TurnProcessRow`）：文案就是这一轮的结局——「已完成，用时 35分53秒」
+ * 「已完成」「已停止」「处理失败」；下面一条整宽分割线，与标题间距 8。
  *
- * Android 的展开态由 store 记账；这里改成组件本地状态。只要这一轮真的折进了东西
- * （builtin 有内容，或宿主额外给了 turnProcessSummary），就给箭头允许展开——与 Android
- * 「过程折叠行永远可展开」同口径，缺省只是没有额外摘要而已。
+ * 可折叠时整行可点，一枚向下的箭头紧跟文字右侧（间距 4），展开时旋转 180°；不可折叠时
+ * 只有文案和分割线。字号与助手正文同档，颜色是卡片标题的次级灰，按下提亮一档，不画背景。
  */
 function TurnProcessRow(props: {
   spec: TurnProcessSpec;
-  turnProcessSummary?: (turn: number) => string | undefined;
-  findQuery: string;
-  findActive: boolean;
   /** 展开态的权威是会话 store：展开后折叠过滤会把这轮的思考/工具行真正放出来。 */
   expandedStore?: Store<boolean>;
   onToggleExpand?: () => void;
 }): JSX.Element {
-  const { spec, turnProcessSummary, findQuery, findActive } = props;
+  const { spec } = props;
   const stored = useStore(props.expandedStore ?? EMPTY_EXPANDED_STORE);
   const [localExpanded, setLocalExpanded] = useState(false);
   // 没有 store 时退回组件本地状态（缺省只是这一行自己的展开，不影响转写过滤）。
   const expanded = props.expandedStore === undefined ? localExpanded : stored;
-  const provided = turnProcessSummary === undefined ? undefined : turnProcessSummary(spec.turn);
-  const builtin = processSummaryParts(spec);
-  const fallback = builtin.length > 0 ? builtin.join(' · ') : spec.inlineReasoning ? Strings.thinking : '';
-  const summary = provided !== undefined && provided.length > 0 ? provided : fallback;
-  const expandable = turnProcessSummary !== undefined || builtin.length > 0;
+  const foldable = turnProcessFoldable(spec);
+  const toggle = (): void => {
+    if (props.onToggleExpand !== undefined) props.onToggleExpand();
+    else setLocalExpanded(value => !value);
+  };
   return (
-    <View className={styles.card}>
-      <CardHeader
-        name='ellipsis'
-        summary={summary.length > 0 ? summary : Strings.thinking}
-        suffix={spec.durationMs === undefined ? undefined : fmt(Strings.turnProcessTook, formatDuration(spec.durationMs))}
-        findQuery={findQuery}
-        findActive={findActive}
-        expanded={expandable ? expanded : undefined}
-        onClick={
-          expandable
-            ? () => {
-                if (props.onToggleExpand !== undefined) props.onToggleExpand();
-                else setLocalExpanded(value => !value);
-              }
-            : undefined
-        }
-      />
-      {expandable && expanded ? (
-        <View className={styles.cardBody}>
-          {(builtin.length > 0 ? builtin : [Strings.thinking]).map((line, index) => (
-            <Text key={index} className={styles.processLine}>
-              {line}
-            </Text>
-          ))}
-        </View>
-      ) : null}
+    <View
+      className={styles.process}
+      hoverClass={foldable ? styles.processPressed : 'none'}
+      hoverStayTime={100}
+      onClick={foldable ? toggle : undefined}
+    >
+      <View className={styles.processHeading}>
+        <Text className={styles.processLabel}>{turnProcessLabel(spec)}</Text>
+        {foldable ? (
+          <Icon
+            name='chevron-down'
+            className={styles.processChevron + (expanded ? ' ' + styles.processChevronOpen : '')}
+          />
+        ) : null}
+      </View>
+      <View className={styles.processDivider} />
     </View>
   );
 }
 
 /**
- * 运行中底部状态（对齐 Mac `RunningStatusRow`）：正在做哪类事 + 本轮自 turn/start 起的用时，
- * 例如「正在运行命令 · 1分5秒」。只有这一行每秒重绘；不足一秒按一秒（同 web）。
+ * 输入框上方的运行状态条（对齐 Mac `RunningStatusRow`）：小转圈 + 正在做哪类事 + 本轮自 turn/start
+ * 起的用时，例如「正在运行命令 · 1分5秒」。只有这一行每秒重绘；不足一秒按一秒（同 web）。
  */
 export function RunningStatusRow(props: { toolName?: string; startedAt?: number }): JSX.Element {
   const { startedAt } = props;
-  const [now, setNow] = useState(() => Date.now());
+  const [, setTick] = useState(0);
   useEffect(() => {
     if (startedAt === undefined) return undefined;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const timer = setInterval(() => setTick(value => value + 1), 1000);
     return () => clearInterval(timer);
   }, [startedAt]);
-  const label = Strings[liveActivityKey(props.toolName)];
-  const elapsed = startedAt === undefined ? '' : ' · ' + formatDuration(Math.max(1000, now - startedAt));
+  const label = runningStatusText(Strings[liveActivityKey(props.toolName)], startedAt, Date.now());
   return (
     <View className={styles.runningStatus}>
-      <Icon name='loader-circle' spin className={styles.runningStatusGlyph} />
-      <Text className={styles.runningStatusText}>{label + elapsed}</Text>
+      <View className={styles.runningStatusSlot}>
+        <Icon name='loader-circle' spin className={styles.runningStatusGlyph} />
+      </View>
+      <Text className={styles.runningStatusText}>{label}</Text>
     </View>
   );
 }
@@ -834,25 +833,24 @@ function TurnTailRow(props: { data: TurnTailData; onFork?: (turn: number) => voi
       void Taro.showToast({ title: Strings.copyFailed, icon: 'none' });
     }
   };
-  // 停止/失败的轮次只交代结局，不给用量与用时（对齐 Android TurnTailRow / web TurnProcessNodeView）。
-  if (data.outcome === 'stopped' || data.outcome === 'failed') {
-    return data.outcome === 'failed' ? (
-      <NoticeRow tone='error' text={Strings.turnFailed} icon='triangle-alert' />
-    ) : (
-      <NoticeRow tone='info' text={Strings.turnStopped} icon='pause-circle' />
+  const changes =
+    changesAddress === undefined || loadTurnChanges === undefined || loadTurnChangesDiff === undefined ? null : (
+      <ChangedFilesCard
+        address={changesAddress(data.turn)}
+        loadSummary={loadTurnChanges}
+        loadDiff={loadTurnChangesDiff}
+      />
     );
+  // 停止/失败的结局已经由这一轮的折叠头交代（「已停止」「处理失败」），页脚不再重复一行提示；
+  // 与 Mac 一样，这样的轮次没有收尾消息，也就没有复制/分支/用量/用时这一排，只留改动文件卡。
+  if (data.outcome === 'stopped' || data.outcome === 'failed') {
+    return <View>{changes}</View>;
   }
   const totalTokens = data.usage === undefined ? 0 : turnTotalTokens(data.usage);
   // 页脚只有两个读数胶囊：总 token 与用时；TPS/TTFT 在用时明细里（对齐 Android StatPill）。
   return (
     <View>
-      {changesAddress === undefined || loadTurnChanges === undefined || loadTurnChangesDiff === undefined ? null : (
-        <ChangedFilesCard
-          address={changesAddress(data.turn)}
-          loadSummary={loadTurnChanges}
-          loadDiff={loadTurnChangesDiff}
-        />
-      )}
+      {changes}
       <View className={styles.tail}>
         {closingText === undefined || closingText.length === 0 ? null : (
           <View className={styles.tailButton} onClick={() => void copyClosing()}>
@@ -901,7 +899,7 @@ function TurnTailRow(props: { data: TurnTailData; onFork?: (turn: number) => voi
  * never 检查里报错，提醒这里漏了一行。
  */
 export function MessageRow(props: MessageRowProps): JSX.Element {
-  const { node, sessionId, cwd, resolveImage, onOpenImage, onFork, turnProcessSummary } = props;
+  const { node, sessionId, cwd, resolveImage, onOpenImage, onFork } = props;
   const findQuery = props.findQuery ?? '';
   const findActive = props.findActive ?? false;
   switch (node.kind) {
@@ -974,9 +972,6 @@ export function MessageRow(props: MessageRowProps): JSX.Element {
       return (
         <TurnProcessRow
           spec={node.spec}
-          turnProcessSummary={turnProcessSummary}
-          findQuery={findQuery}
-          findActive={findActive}
           expandedStore={
             props.turnProcessExpanded === undefined ? undefined : props.turnProcessExpanded(node.spec)
           }

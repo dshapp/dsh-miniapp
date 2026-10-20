@@ -132,15 +132,21 @@ export interface TurnProcessSpec {
   /**
    * 折叠区间的开区间终点：有最终回答时是回答的锚点；没有（如以工具调用收尾）时整轮都是过程，
    * 一直收到 turn/end 之后（web `answerAnchorSeq === null`）。
+   * 不可折叠（停止/失败、轮中插话、回答前没有过程）时为 undefined：控件只交代这一轮怎么结束的
+   * （对齐 Mac `TurnProcessSpec.foldEndSeq` 为 nil）。
    */
-  foldEndSeq: number;
+  foldEndSeq?: number;
   answerStep: number;
-  messageCount: number;
-  toolCallCount: number;
-  subagentCount: number;
   inlineReasoning: boolean;
-  /** 成功轮次的用时（对齐 Mac `TurnProcessSpec.durationMs`）。 */
+  /** 这一轮怎么结束的（web `turn.end.reason.kind`）：停止与失败替掉用时文案。 */
+  outcome: TurnOutcome;
+  /** 成功轮次的用时（对齐 Mac `TurnProcessSpec.durationMs`）；没载到 turn/start 时为空。 */
   durationMs?: number;
+}
+
+/** 这一轮有没有东西可折（对齐 Mac `TurnProcessSpec.foldable`）。 */
+export function turnProcessFoldable(spec: TurnProcessSpec): boolean {
+  return spec.foldEndSeq !== undefined;
 }
 
 export function turnProcessKey(spec: TurnProcessSpec): string {
@@ -148,6 +154,7 @@ export function turnProcessKey(spec: TurnProcessSpec): string {
 }
 
 export function turnProcessCovers(spec: TurnProcessSpec, anchor: number): boolean {
+  if (spec.foldEndSeq === undefined) return false;
   return anchor >= spec.processStartSeq && anchor < spec.foldEndSeq;
 }
 

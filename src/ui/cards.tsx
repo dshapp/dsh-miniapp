@@ -13,6 +13,7 @@ import { AttachmentImage } from './attachmentImage';
 import type { ToolRowState, ToolRowVariant } from '../model/toolRow';
 import { HighlightedText } from './findHighlight';
 import { Icon, type LucideIconName } from './icon';
+import { useBreathe, withBreathe } from './breathe';
 import { MonospaceText } from './markdown';
 import styles from './cards.module.scss';
 
@@ -27,21 +28,6 @@ import styles from './cards.module.scss';
 const JSON_CHILD_LIMIT = 200;
 const READ_LINE_LIMIT = 400;
 const DIFF_LINE_LIMIT = 400;
-
-/** 行尾状态图标；running 不换字形、只让行首那枚变体图标闪烁（见 blink）。 */
-function stateIcon(state: ToolRowState): { name: LucideIconName; blink?: boolean } {
-  switch (state) {
-    case 'preparing':
-    case 'running':
-      return { name: 'loader-circle', blink: true };
-    case 'ok':
-      return { name: 'check' };
-    case 'error':
-      return { name: 'x' };
-    case 'stopped':
-      return { name: 'square' };
-  }
-}
 
 /** 状态色：与 Android 的 tint 分派一致 —— 失败的 run_code 用警示橙而非错误红。 */
 function stateTintClass(state: ToolRowState, variant: ToolRowVariant): string {
@@ -104,14 +90,18 @@ export function ThinkCard(props: {
   text: string;
   findQuery?: string;
   findActive?: boolean;
+  /** 仍在流式输出（所在 step 运行中、且这段 reasoning 是它的最后一个 block）：整行呼吸。 */
+  running?: boolean;
 }): JSX.Element {
   const { text, findQuery = '', findActive = false } = props;
   const firstLine = text.trimStart().split('\n')[0].trim();
   const summary = firstLine.length > 0 ? firstLine : Strings.thinking;
+  const breathe = useBreathe(props.running === true);
   return (
     <View className={styles.card}>
       <View
-        className={styles.row}
+        className={withBreathe(styles.row, breathe)}
+        style={breathe.style}
         onClick={() =>
           openCardDetail({
             icon: 'brain',
@@ -160,6 +150,8 @@ export function ToolCard(props: {
   const rawTitle = model.errorSummary ?? model.summary;
   const title = rawTitle.length > 0 ? rawTitle : data.name;
   const tint = stateTintClass(model.state, model.variant);
+  // 运行中或参数仍在生成的调用整行呼吸（图标仍是这个工具自己的图标，不另放转圈）。
+  const breathe = useBreathe(model.state === 'running' || model.state === 'preparing');
   // 详情弹层需要的两种文本：折叠出标题，拼出可复制的正文。
   const detailTitle = model.summary.split('\n')[0].trim() || data.name;
   const parts: string[] = [];
@@ -211,14 +203,14 @@ export function ToolCard(props: {
   return (
     <View className={styles.card}>
       {/* 准备中的行还没有参数与结果可看：只露摘要，不给详情（对齐 Android ToolCard）。 */}
-      <View className={styles.row} onClick={data.preparing === true ? undefined : openDetail}>
-        <Icon
-          name={toolVariantIcon(model.variant)}
-          // running 时行首变体图标自己闪烁：安卓那边是转圈（Cards.kt:70-78/406-421），
-          // 但变体图标是有方向的字形，转起来读不出是哪种工具，闪烁只改明暗。
-          blink={stateIcon(model.state).blink}
-          className={styles.rowGlyph + ' ' + tint}
-        />
+      {/* 执行态 = 整行（图标 + 摘要 + 附注）呼吸：呼吸挂在行上，行本身不画背景，
+          动的只是内容的透明度；中途才出现的附注也跟着同一相位。 */}
+      <View
+        className={withBreathe(styles.row, breathe)}
+        style={breathe.style}
+        onClick={data.preparing === true ? undefined : openDetail}
+      >
+        <Icon name={toolVariantIcon(model.variant)} className={styles.rowGlyph + ' ' + tint} />
         <HighlightedText className={styles.rowTitle + ' ' + tint} text={title} query={findQuery} active={findActive} />
         {model.summarySuffix === undefined ? null : (
           <Text className={styles.rowSuffix}>{model.summarySuffix}</Text>

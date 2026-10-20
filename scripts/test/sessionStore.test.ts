@@ -6,6 +6,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SessionStore } from '../../src/state/sessionStore';
 import { setLocale } from '../../src/i18n/strings';
+import { turnProcessFoldable } from '../../src/model/chatNode';
+import { turnProcessLabel } from '../../src/model/format';
 
 // —— 工具调用与结果的配对（安卓 ToolResultLinkageTest）————————————
 
@@ -174,10 +176,44 @@ test('轮次折叠：插话轮不折、无最终回答整轮折、轮前命令�
   const kinds = store.nodes
     .filter(node => node.kind !== 'turnTail')
     .map(node => (node.kind === 'user' || node.kind === 'steering' ? node.messageId : node.kind));
+  // 插话轮（第 3 轮）同样有折叠头（对齐 Mac：每个已关闭的轮次都有），只是不可折、过程照常摊开。
   assert.deepEqual(kinds, [
     'u1', 'turnProcess', 'assistant',
     'u2', 'turnProcess',
-    'u3', 'assistant', 'tool', 's3', 'assistant',
+    'u3', 'turnProcess', 'assistant', 'tool', 's3', 'assistant',
     'u4', 'command', 'turnProcess', 'assistant',
   ]);
+  const foldable = store.nodes.flatMap(node => (node.kind === 'turnProcess' ? [[node.spec.turn, turnProcessFoldable(node.spec)]] : []));
+  assert.deepEqual(foldable, [[1, true], [2, true], [3, false], [4, true]]);
+});
+
+test('轮次折叠头：停止/失败轮也有，不可折；只有完成轮带用时', () => {
+  const store = new SessionStore('s1');
+  let seq = 0;
+  const put = (type: string, data: unknown, time = 0) => store.apply({ type, seq: ++seq, time, data } as never, undefined);
+  const user = (id: string) => put('user/message', { id, content: [{ type: 'text', text: id }], source: { kind: 'user' } });
+  const toolStep = (turn: number, step: number, time: number) => {
+    const callId = 'c' + turn + step;
+    put('assistant/message', { turn, step, message: { id: 'a' + turn + step, content: [{ type: 'tool-call', id: callId, name: 'bash', arguments: '{}' }] } }, time);
+    put('tool/call', { callId, name: 'bash', arguments: '{}', turn, step }, time);
+  };
+  const text = [{ type: 'text', text: 'done' }];
+  user('u1'); put('turn/start', { turn: 1 }, 1_000); toolStep(1, 1, 2_000);
+  put('assistant/message', { turn: 1, step: 2, message: { id: 'a12', content: text } }, 3_000);
+  put('turn/end', { turn: 1, reason: { kind: 'completed' } }, 2_154_000);
+  user('u2'); put('turn/start', { turn: 2 }, 3_000_000); toolStep(2, 1, 3_000_100);
+  put('turn/end', { turn: 2, reason: { kind: 'aborted' } }, 3_000_500);
+  user('u3'); put('turn/start', { turn: 3 }, 4_000_000); toolStep(3, 1, 4_000_100);
+  put('turn/end', { turn: 3, reason: { kind: 'error', error: { message: 'boom' } } }, 4_000_500);
+  const specs = store.nodes.flatMap(node => (node.kind === 'turnProcess' ? [node.spec] : []));
+  assert.deepEqual(
+    specs.map(spec => [spec.turn, spec.outcome, turnProcessFoldable(spec), spec.durationMs]),
+    [[1, 'completed', true, 2_153_000], [2, 'stopped', false, undefined], [3, 'failed', false, undefined]],
+  );
+  // 停止/失败轮不折：过程行照常留在转写里，折叠头也不挡住它们。
+  assert.equal(store.nodes.filter(node => node.kind === 'tool').length, 2);
+  setLocale('zh');
+  assert.deepEqual(specs.map(spec => turnProcessLabel(spec)), ['已完成，用时 35分53秒', '已停止', '处理失败']);
+  setLocale('en');
+  assert.deepEqual(specs.map(spec => turnProcessLabel(spec)), ['Completed in 35m 53s', 'Stopped', 'Failed']);
 });

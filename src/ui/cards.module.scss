@@ -15,8 +15,9 @@
   flex-direction: row;
   align-items: center;
   gap: 6px;
-  /* 对齐 Android Dimens.chromeRowHeight = 24dp（Cards.kt `heightIn(min = ...)`）。 */
-  min-height: 24px;
+  /* 卡片行紧排：对齐 Mac iOS PhoneLayout.chromeRowHeight = 18（12 档字 + 上下约 1pt），
+     行距由父容器的 rowSpacing（4）统一给。不加上下 padding：content-box 下会把行撑高。 */
+  min-height: 18px;
 }
 
 .rowGlyph {
@@ -244,28 +245,35 @@
   color: var(--dsh-color-text);
 }
 
+/* 提示行（压缩、重试、长度上限、错误、命令）与工具行是同一族卡片单行
+   （对齐 Mac PhoneNoticeRow = PhoneCardRow）：同一最小行高、同一图标槽与 12 档字，单行截断，
+   全文走详情（detailed）。 */
 .noticeRow {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
-  min-height: 28px;
-  padding: 4px 0;
+  min-height: 18px;
 }
 
 .noticeGlyph {
   flex-shrink: 0;
-  width: 16px;
-  font-size: 13px;
-  line-height: 18px;
+  width: 14px;
+  height: 14px;
+  font-size: 14px;
+  line-height: 14px;
   text-align: center;
 }
 
 .noticeText {
   flex: 1;
-  font-size: 13px;
-  line-height: 18px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 16px;
   color: var(--dsh-color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .jsonContainer {

@@ -26,7 +26,6 @@ import {
   chatNodeTurnNumber,
   decodeContentBlock,
   decodeToolError,
-  isSubagentDelegationTool,
   toAssistantBlock,
   turnProcessCovers,
   turnProcessKey,
@@ -43,6 +42,7 @@ import type {
   ToolChatData,
   ToolResultData,
   TurnMaxTokensNode,
+  TurnOutcome,
   TurnProcessSpec,
   TurnTailData,
   WorkflowRunData,
@@ -713,11 +713,15 @@ export class SessionStore {
   }
 
   /**
-   * 运行中底部状态行（对齐 Mac `RunningStatusRow` / 扩展 e88b2a0）：最新一轮里还没出结果的那个工具调用，
+   * 输入框上方的运行状态条（对齐 Mac `RunningStatusRow` / 扩展 a268f45）：最新一轮里还没出结果的那个工具调用，
    * 以及本轮 turn/start 的时刻；模型在思考时 toolName 为空，没载到 turn/start 时不给用时。
+   * 刚发出、主机还没开轮（有待确认的 transcript 提交）时也亮，文案是「正在分析请求」、不带用时。
    */
   get runningStatus(): { toolName?: string; startedAt?: number } | undefined {
-    if (!this.running) return undefined;
+    if (!this.running) {
+      const awaiting = this.pendingSubmissions.some(item => item.placement === 'transcript');
+      return awaiting ? { toolName: undefined, startedAt: undefined } : undefined;
+    }
     let newestTurn: number | undefined;
     let toolName: string | undefined;
     for (let i = this.nodes.length - 1; i >= 0; i -= 1) {
@@ -2787,9 +2791,6 @@ export class SessionStore {
       lastStep: number;
       lastIsAnswer: boolean;
       lastReasoning: boolean;
-      messagesByStep: Map<number, number>;
-      toolCalls: number;
-      subagents: number;
       /** 轮中插话（web `hasInterleavedInput`）：这一轮保持展开。 */
       interleaved: boolean;
     }
@@ -2809,9 +2810,6 @@ export class SessionStore {
           lastStep: 0,
           lastIsAnswer: false,
           lastReasoning: false,
-          messagesByStep: new Map<number, number>(),
-          toolCalls: 0,
-          subagents: 0,
           interleaved: false,
         };
         byTurn.set(turn, acc);
@@ -2855,7 +2853,6 @@ export class SessionStore {
         case 'assistant': {
           const step = node.step;
           const hasReply = step.blocks.some(block => this.isReplyBlock(block));
-          if (hasReply) acc.messagesByStep.set(step.step, (acc.messagesByStep.get(step.step) ?? 0) + 1);
           if (acc.lastAnchor !== undefined) acc.processAnchors.push(acc.lastAnchor);
           const isAnswer =
             step.status === 'settled' && hasReply && !step.blocks.some(block => block !== null && block.kind === 'toolCall');
@@ -2867,10 +2864,6 @@ export class SessionStore {
           break;
         }
         case 'tool':
-          if (isSubagentDelegationTool(node.data.name)) acc.subagents += 1;
-          else acc.toolCalls += 1;
-          acc.processAnchors.push(chatNodeAnchorSeq(node));
-          break;
         case 'modelRetry':
         case 'compaction':
         case 'command':
@@ -2889,30 +2882,32 @@ export class SessionStore {
       if (acc === undefined) continue;
       const lastAnchor = acc.lastAnchor;
       if (lastAnchor === undefined) continue;
-      // 只有已关闭、正常结束（非停止/失败）且没有轮中插话的轮次才折叠（web `canCollapse`）。
+      // 每个已关闭的轮次都有一个折叠头（对齐 Mac：文案就是结局，停止/失败也画）；
+      // 进行中的轮次没有（web 只在轮次关闭后渲染）。
       const end = this.turnEndBoundaryAfter(Math.trunc(lastAnchor));
-      if (end === undefined || end[2] === 'aborted' || end[2] === 'error' || acc.interleaved) continue;
+      if (end === undefined) continue;
+      const outcome: TurnOutcome = end[2] === 'aborted' ? 'stopped' : end[2] === 'error' ? 'failed' : 'completed';
       const answered = acc.lastIsAnswer;
       // 有最终回答：收起回答之前的过程；没有：整轮都是过程，收到 turn/end 为止，也没有内联 reasoning 要藏。
       const externalCandidates = answered ? acc.processAnchors.filter(anchor => anchor < lastAnchor) : acc.processAnchors;
       const external = externalCandidates.length > 0 ? Math.min(...externalCandidates) : undefined;
-      if (answered && external === undefined && !acc.lastReasoning) continue;
-      let messages = 0;
-      for (const [step, count] of Array.from(acc.messagesByStep.entries())) {
-        if (!answered || step < acc.lastStep) messages += count;
-      }
+      // 只有正常结束、没有轮中插话、且真有东西可藏的轮次才可折（web `canCollapse`）；
+      // 其余轮次的折叠头只交代结局，不带箭头。
+      const foldable = outcome === 'completed' && !acc.interleaved && (!answered || external !== undefined || acc.lastReasoning);
       this.turnProcessSpecs.set(turn + ':' + acc.lastStep, {
         turn,
         processStartSeq: Math.min(external ?? lastAnchor, lastAnchor),
-        foldEndSeq: answered ? lastAnchor : end[0] + 0.5,
+        foldEndSeq: foldable ? (answered ? lastAnchor : end[0] + 0.5) : undefined,
         answerStep: acc.lastStep,
-        messageCount: messages,
-        toolCallCount: acc.toolCalls,
-        subagentCount: acc.subagents,
-        inlineReasoning: answered && acc.lastReasoning,
-        durationMs: (tail => (tail !== undefined && tail.kind === 'tail' ? tail.data.runMs : undefined))(
-          this.contexts.get('turn-tail:' + turn),
-        ),
+        inlineReasoning: foldable && answered && acc.lastReasoning,
+        outcome,
+        // 用时只给完成的轮次（停止/失败用结局替掉用时）；tail.runMs = turn/end - turn/start。
+        durationMs:
+          outcome !== 'completed'
+            ? undefined
+            : (tail => (tail !== undefined && tail.kind === 'tail' ? tail.data.runMs : undefined))(
+                this.contexts.get('turn-tail:' + turn),
+              ),
       });
     }
   }

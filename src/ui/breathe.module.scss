@@ -1,0 +1,27 @@
+/*
+ * 执行中卡片的整行呼吸（对齐 Mac / 扩展 a268f45 的 card-breathe）：
+ * 图标与标题一起在 1 → 0.35 → 1 之间起伏，周期 1.6s。只动内容的透明度，不动行背景。
+ * 相位由 ui/breathe.ts 用负的 animation-delay 对齐到全局时钟，多张卡片同起同落。
+ *
+ * keyframes 必须和 .breathe 在同一个 CSS Module 里：postcss-modules 会给两者加同一份哈希。
+ */
+.breathe {
+  animation: card-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes card-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* 系统「减少动态效果」：平台支持这条媒体查询时（H5）不播放；微信小程序目前不暴露该偏好。 */
+@media (prefers-reduced-motion: reduce) {
+  .breathe {
+    animation: none;
+  }
+}

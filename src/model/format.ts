@@ -10,7 +10,7 @@ import {
   type SubagentListEntry,
   type TokenUsage,
 } from './types';
-import type { ChatNode } from './chatNode';
+import type { ChatNode, TurnProcessSpec } from './chatNode';
 
 // 轮次页脚格式化（与 iOS/web 同口径）——————————————————————————
 
@@ -35,6 +35,32 @@ export function formatDuration(ms: number): string {
   if (total >= 3600) text += String(Math.floor(total / 3600)) + Strings.durationHourUnit;
   if (total >= 60) text += String(Math.floor(total / 60) % 60) + Strings.durationMinuteUnit;
   return text + String(total % 60) + Strings.durationSecondUnit;
+}
+
+/**
+ * 轮次折叠头的文案就是这一轮的结局（对齐 Mac `TurnProcessSpec.label`）：
+ * 停止 / 失败只说结果；完成且有用时带上用时，下限 1 秒（「已完成，用时 35分53秒」）；
+ * 完成但没载到 turn/start 时只说「已完成」。
+ */
+export function turnProcessLabel(spec: Pick<TurnProcessSpec, 'outcome' | 'durationMs'>): string {
+  switch (spec.outcome) {
+    case 'stopped':
+      return Strings.turnStopped;
+    case 'failed':
+      return Strings.turnFailed;
+    case 'completed':
+      if (spec.durationMs === undefined) return Strings.turnProcessCompleted;
+      return fmt(Strings.turnProcessTook, formatDuration(Math.max(1000, spec.durationMs)));
+  }
+}
+
+/**
+ * 运行状态条的文案（对齐 Mac `RunningStatusRow`）：工作类别 + 「 · 用时」。
+ * 用时从本轮 turn/start 起算、下限 1 秒；拿不到 turn/start 时只给工作类别。
+ */
+export function runningStatusText(label: string, startedAt: number | undefined, now: number): string {
+  if (startedAt === undefined) return label;
+  return label + ' · ' + formatDuration(Math.max(1000, now - startedAt));
 }
 
 /** 上下文面板里的用时读数：不足一分钟保留一位小数，超过按分秒拆开。 */

@@ -82,21 +82,34 @@
   color: var(--dsh-color-text-faint);
 }
 
-/* 运行中底部状态行：与页脚同一档的次要灰。 */
+/* 输入框上方的运行状态条（对齐 Mac RunningStatusRow）：一行 chromeRowHeight 高，
+   与页脚同一档的次要灰。图标槽与卡片图标同宽（14），转圈与上方卡片的图标对齐。 */
 .runningStatus {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 6px;
-  min-height: 28px;
-  padding: 4px 0;
+  height: 18px;
 }
 
+.runningStatusSlot {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+}
+
+/* Mac 这里是系统最小号的转圈（ProgressView .mini）。 */
 .runningStatusGlyph {
-  font-size: 13px;
+  font-size: 11px;
+  line-height: 11px;
   color: var(--dsh-color-text-faint);
 }
 
 .runningStatusText {
+  min-width: 0;
   font-size: 12px;
   line-height: 16px;
   color: var(--dsh-color-text-faint);
@@ -288,13 +301,9 @@
   width: 100%;
 }
 
+/* 正文消息只在顶部多让一口气（Mac PhoneLayout.messageTopInset = 8），其余间距归 rowSpacing。 */
 .mdBlock {
-  padding: 8px 0;
-}
-
-.loadingGlyph {
-  font-size: 16px;
-  line-height: 22px;
+  padding-top: 8px;
 }
 
 /* 气泡里的会话引用：整条标题一个可点的主题色 token，字号随正文。 */
@@ -312,8 +321,8 @@
   flex-direction: row;
   align-items: center;
   gap: 6px;
-  /* 对齐 Android Dimens.chromeRowHeight = 24dp。 */
-  min-height: 24px;
+  /* 卡片行紧排：对齐 Mac iOS PhoneLayout.chromeRowHeight = 18，与 cards 的工具/思考行同一行高。 */
+  min-height: 18px;
 }
 
 .rowClickable {
@@ -391,11 +400,57 @@
   word-break: break-word;
 }
 
-.processLine {
-  display: block;
-  font-size: 13px;
-  line-height: 18px;
+/*
+ * 轮次折叠头（对齐 Mac TurnProcessRow）：「已完成，用时 35分53秒」+ 紧跟其右的箭头，
+ * 下方一条整宽分割线（Mac Divider，与标题行间距 8）。字号与助手正文同档（markdown 16/25），
+ * 颜色是卡片标题的次级灰；可折叠时按下提亮一档（hover-class），不画背景。
+ * 文字与箭头都不自带颜色，跟着容器走，按下态只改容器一处。
+ */
+.process {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
   color: var(--dsh-color-text-sub);
+}
+
+.processPressed {
+  color: var(--dsh-color-text);
+}
+
+.processHeading {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  /* Mac HStack(spacing: 4)：箭头紧跟文字，不被推到行尾。 */
+  gap: 4px;
+  min-width: 0;
+}
+
+.processLabel {
+  min-width: 0;
+  font-size: 16px;
+  line-height: 25px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 一枚向下的箭头，展开时转 180°（带短过渡），不靠两个字形互换。 */
+.processChevron {
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 13px;
+  transition: transform 0.1s ease-in-out;
+}
+
+.processChevronOpen {
+  transform: rotate(180deg);
+}
+
+.processDivider {
+  height: 1px;
+  margin-top: 8px;
+  background: var(--dsh-color-border);
 }
 
 /* 工作流展开后的各阶段。 */

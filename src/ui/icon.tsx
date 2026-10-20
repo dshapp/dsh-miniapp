@@ -15,8 +15,6 @@ export function Icon(props: {
   className?: string;
   /** 转圈：只给 loader-circle / refresh-cw 这类"进行中"图标用。 */
   spin?: boolean;
-  /** 闪烁：转写里"正在执行"的卡片用它，图标不转、只做明暗呼吸。 */
-  blink?: boolean;
   style?: React.CSSProperties;
   onClick?: TextProps['onClick'];
   /** 读屏用标签：纯图标按钮没有可见文字，必须给一个（对齐 Android 的 contentDescription）。 */
@@ -25,7 +23,6 @@ export function Icon(props: {
   const className = [
     styles.icon,
     props.spin === true ? styles.spin : '',
-    props.blink === true ? styles.blink : '',
     props.className ?? '',
   ]
     .filter(part => part.length > 0)

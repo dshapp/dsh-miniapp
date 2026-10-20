@@ -15,11 +15,7 @@
   animation: lucide-spin 1s linear infinite;
 }
 
-/* 「进行中」的另一种表达：明暗呼吸而不是转圈。转圈会把工具行首那枚有方向的字形
-   （扳手、尖括号、终端提示符）转得认不出来，闪烁只改透明度，图标本身还看得清。 */
-.blink {
-  animation: lucide-blink 1.2s ease-in-out infinite;
-}
+/* 「进行中」卡片的明暗呼吸不在这里：它是整行（图标 + 标题）一起呼吸，见 ui/breathe.module.scss。 */
 
 /* keyframes 必须和 .spin 在同一个 CSS Module 里：postcss-modules 会给两者加同一份
  * 哈希，若把 keyframes 留在全局 scss，动画名就对不上了。 */
@@ -29,15 +25,5 @@
   }
   to {
     transform: rotate(360deg);
-  }
-}
-
-@keyframes lucide-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.25;
   }
 }
