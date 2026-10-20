@@ -6,7 +6,6 @@ export const MAIN_ROUTE = {
   SETTINGS: 'pages/settings/index', // 设置
   ARCHIVED: 'pages/archived/index', // 已归档会话
   PAIRING: 'pages/pairing/index', // 扫码 / 手动配对
-  PLUGINS: 'pages/plugins/index', // 插件管理
   AUTOMATIONS: 'pages/automations/index', // 自动化任务
 };
 

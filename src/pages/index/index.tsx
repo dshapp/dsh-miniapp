@@ -310,19 +310,23 @@ export default function SessionListPage(): JSX.Element {
     if (key.startsWith('ws:')) void model.moveWorkspace(workspaceId, key.slice(3) as WorkspaceId);
   }, [groupMenu, model]);
 
-  // 归档入口不进这个菜单：它固定在这一列的底部（对齐 Android/Mac 侧栏），
-  // 折进视图选项菜单会让人以为归档是一种「视图」。
+  // 顶栏筛选菜单：上半是分组/排序选项（带勾），分隔线下面是两个跳页入口——
+  // 已归档会话（归档会话已从列表里滤掉，这是它们唯一的入口）与自动化任务。
   const viewMenuItems = React.useMemo((): ActionMenuItem[] => [
     { key: 'group-workspace', label: Strings.groupByWorkspace, checked: groupBy === 'workspace' },
     { key: 'group-flat', label: Strings.groupByFlat, checked: groupBy === 'flat' },
     { key: 'order-updated', label: Strings.orderUpdated, checked: orderBy === 'updated' },
     { key: 'order-status', label: Strings.orderStatus, checked: orderBy === 'status' },
     { key: 'order-manual', label: Strings.orderManual, checked: orderBy === 'manual' },
+    { key: 'open-archived', label: Strings.archivedSessions, icon: 'archive', divider: true },
+    { key: 'open-automations', label: Strings.automationsTitle, icon: 'clock' },
   ], [groupBy, orderBy]);
 
   const selectViewMenu = React.useCallback((key: string): void => {
     setViewMenu(undefined);
-    if (key === 'group-workspace') setGroupBy('workspace');
+    if (key === 'open-archived') openPage(pageRoutes.ARCHIVED);
+    else if (key === 'open-automations') openPage(pageRoutes.AUTOMATIONS);
+    else if (key === 'group-workspace') setGroupBy('workspace');
     else if (key === 'group-flat') setGroupBy('flat');
     else if (key === 'order-updated') setOrderBy('updated');
     else if (key === 'order-status') setOrderBy('status');
@@ -410,8 +414,8 @@ export default function SessionListPage(): JSX.Element {
   // 一台 Mac 都没配对：不画列表，直接送去配对（对齐 Android App.kt 的 root 分支）。
   // 手机端没有「没配对也能连」的路，所以这里不该出现任何假装在连的界面。
   if (profilesState.profiles.length === 0) {
-    // 引导页自己就是一整屏（含顶栏），不要再套一层列表页的容器：那层还留着
-    // 给底部归档入口的 72px 内边距，套上去会多出一截空白。
+    // 引导页自己就是一整屏（含顶栏），不要再套一层列表页的容器：那层有自己的
+    // 背景与底部内边距，套上去会多出一截空白。
     // 「扫描二维码」就地拉起相机，扫到之后才进配对页走「校验 -> 确认电脑名」；
     // 取消就留在引导页。相机不可用时直接送去配对页的粘贴态并说明原因。
     return (
@@ -527,13 +531,6 @@ export default function SessionListPage(): JSX.Element {
           </View>
         ) : null}
 
-
-        {/* 归档会话已经在 listed 里被滤掉了，这里是它们唯一的入口，所以固定在这一列底部
-            （不随列表滚动），而不是折进视图选项菜单——对齐 Android/Mac 侧栏。 */}
-        <View className={styles.archiveEntry} onClick={() => openPage(pageRoutes.ARCHIVED)}>
-          <Icon name='archive' className={styles.archiveGlyph} />
-          <Text className={styles.archiveLabel}>{Strings.archivedSessions}</Text>
-        </View>
 
         <ActionMenu anchor={rowMenu?.anchor} items={rowMenuItems} onSelect={selectRowMenu} onClose={() => setRowMenu(undefined)} width={168} />
         <ActionMenu anchor={groupMenu?.anchor} items={groupMenuItems} onSelect={selectGroupMenu} onClose={() => setGroupMenu(undefined)} width={200} />

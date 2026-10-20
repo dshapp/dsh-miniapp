@@ -13,7 +13,6 @@ import type { ActionMenuAnchor, ActionMenuItem } from '../../ui/actionMenu';
 import { Icon } from '../../ui/icon';
 import { NavBar, NavIconButton, NavTitle } from '../../ui/navBar';
 import { PageShell } from '../../ui/pageShell';
-import { HostSettingsSection } from '../../ui/hostSettings';
 import styles from './index.module.scss';
 
 function languageLabel(locale: AppLocale | null): string {
@@ -39,8 +38,9 @@ function dotClass(tone: ReturnType<typeof connectionTone>): string {
 /**
  * 设置页：列表页左上角状态点的落点。
  *
- * 与 Android 的 SettingsScreen 同一口径：一页之内看全已配对的机器、切换/重命名/移除，
- * 再往下是外观区（语言、主题）。手机端只有加密隧道一条路，所以这里没有传输方式、
+ * 只放两样：已配对的机器（切换/重命名/移除）与外观区（语言、主题）。自动化任务与
+ * 已归档会话的入口在会话列表顶栏的筛选菜单里；插件管理、模型与凭证、Agent 预设这些
+ * 主机配置不在手机端提供。手机端只有加密隧道一条路，所以这里没有传输方式、
  * 服务地址、Cookie 之类的开关——连接参数全部来自配对资料。
  *
  * 新增服务走标题栏那一行（与 Android 收在右上角加号里同义）；移除最后一台机器后
@@ -170,27 +170,6 @@ export default function SettingsPage(): JSX.Element {
             );
           })}
         </View>
-
-        {/* 主机管理入口：安卓放在会话列表的视图菜单里，小程序收在设置页。 */}
-        <Text className={styles.sectionTitle}>DSH</Text>
-        <View className={styles.card}>
-          <View className={styles.row} onClick={() => openPage(pageRoutes.PLUGINS)}>
-            <Text className={styles.label}>{Strings.pluginsTitle}</Text>
-            <Icon name='chevron-right' className={styles.chevron} />
-          </View>
-          <View className={styles.row} onClick={() => openPage(pageRoutes.AUTOMATIONS)}>
-            <Text className={styles.label}>{Strings.automationsTitle}</Text>
-            <Icon name='chevron-right' className={styles.chevron} />
-          </View>
-        </View>
-
-        <HostSettingsSection
-          rowClass={styles.row}
-          labelClass={styles.label}
-          valueClass={styles.value}
-          cardClass={styles.card}
-          sectionClass={styles.sectionTitle}
-        />
 
         <Text className={styles.sectionTitle}>{Strings.appearance}</Text>
         <View className={styles.card}>

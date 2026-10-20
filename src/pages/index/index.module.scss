@@ -7,8 +7,8 @@
   /* 安卓 SessionListScreen 是 Scaffold(surface 底) + 透明 ListItem，行间没有分隔线，
      所以整页取卡片/表面色，行自身不再铺白底画线。 */
   background: var(--dsh-color-card);
-  // 底部常驻的归档入口是固定定位的，列表尾巴要留出它的高度（含安全区）。
-  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  // 列表尾巴留出底部安全区（全面屏的手势条）。
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
 }
 
 /* 连接状态点的点按范围：对齐 Android `IconButton { ConnectionDot(model) }`——
@@ -151,42 +151,6 @@
   text-align: center;
   font-size: 12px;
   color: var(--dsh-color-text-faint);
-}
-
-/* 列表最下面的归档入口：固定在这一列底部（对齐 Android/Mac 侧栏），不随列表滚动。 */
-.archiveEntry {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  /* 图标与标题的间距跟 .row 同一口径，不然它比上面每一行都宽一截。 */
-  gap: 10px;
-  /* 对齐 Android 底部 ListItem（56dp）与它上方的 HorizontalDivider。
-     安全区要加在 56dp 之外：border-box 下直接写 padding-bottom 会从这 56px 里扣，
-     行高不变、内容却被挤到上半截，看着就是「底部边距不对」。 */
-  min-height: calc(56px + env(safe-area-inset-bottom));
-  box-sizing: border-box;
-  padding: 0 16px;
-  padding-bottom: env(safe-area-inset-bottom);
-  background: var(--dsh-color-card);
-  border-top: 1px solid var(--dsh-color-border);
-}
-
-/* 和列表行的状态图标同规格（.glyph）：16px 字号 + 16px 固定槽位 + outline 色。 */
-.archiveGlyph {
-  width: 16px;
-  font-size: 16px;
-  line-height: 20px;
-  text-align: center;
-  flex-shrink: 0;
-  color: var(--dsh-color-outline);
-}
-
-.archiveLabel {
-  font-size: 16px;
-  color: var(--dsh-color-text);
 }
 
 /* 空态/连接中：在剩余空间里垂直+水平居中（对齐 Android StatusOverlay 的

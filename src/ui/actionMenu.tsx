@@ -21,6 +21,8 @@ export interface ActionMenuItem {
   disabled?: boolean;
   /** 选中项在图标槽画一枚对勾（对齐安卓 DropdownMenuItem 的 leadingIcon = Check）。 */
   checked?: boolean;
+  /** 在这一项上方画一条分隔线，把「切换选项」和「跳去别的页面」这类不同性质的项隔开。 */
+  divider?: boolean;
 }
 
 /** 触发点坐标（`clientX/clientY`，视口坐标）与菜单宽高上限。 */
@@ -50,7 +52,7 @@ export function ActionMenu(props: {
   const info = getSystemInfo();
   const viewportWidth = info.windowWidth ?? 375;
   const viewportHeight = info.windowHeight ?? 667;
-  const estimatedHeight = items.length * 44 + 8;
+  const estimatedHeight = items.length * 44 + items.filter(item => item.divider === true).length * 9 + 8;
 
   const left = Math.max(8, Math.min(anchor.x, viewportWidth - width - 8));
   const openUpward = anchor.y + estimatedHeight > viewportHeight;
@@ -68,7 +70,11 @@ export function ActionMenu(props: {
         {items.map(item => (
           <View
             key={item.key}
-            className={styles.row + (item.disabled === true ? ' ' + styles.rowDisabled : '')}
+            className={
+              styles.row
+              + (item.disabled === true ? ' ' + styles.rowDisabled : '')
+              + (item.divider === true ? ' ' + styles.rowDivider : '')
+            }
             onClick={() => {
               if (item.disabled === true) return;
               onSelect(item.key);

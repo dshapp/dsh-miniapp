@@ -33,6 +33,13 @@
   opacity: 0.38;
 }
 
+/* 分组分隔线（对齐安卓 DropdownMenu 里的 HorizontalDivider，上下各留 4dp）。 */
+.rowDivider {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--dsh-color-border);
+}
+
 .glyph {
   flex-shrink: 0;
   width: 18px;
