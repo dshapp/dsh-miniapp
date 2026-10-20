@@ -10,3 +10,5 @@ dist/
 .env
 # 开发者工具的本机设置
 project.private.config.json
+# miniprogram-ci 上传密钥（preview:weapp / upload:weapp 用），不进仓库
+private.*.key
