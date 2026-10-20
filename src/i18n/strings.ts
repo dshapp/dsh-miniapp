@@ -48,6 +48,8 @@ const TABLE = {
   status: ['Status', '状态'],
   statusConnected: ['Connected', '已连接'],
   statusConnecting: ['Connecting…', '连接中…'],
+  connectingTo: ['Connecting to %s…', '正在连接 %s…'],
+  connectingBody: ['Loading sessions from your Desktop.', '正在从电脑加载会话列表'],
   statusIdle: ['Not connected', '未连接'],
   lastConnected: ['Last connected', '最近连接'],
   rescan: ['Scan Again', '重新扫描'],

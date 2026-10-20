@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, View } from '@tarojs/components';
 import Taro, { useDidShow, usePullDownRefresh, useReachBottom } from '@tarojs/taro';
-import { Strings } from '../../i18n/strings';
+import { Strings, fmt } from '../../i18n/strings';
 import { openPage, pageRoutes } from '../../framework/page';
 import { openPairing } from '../../framework/pairingEntry';
 import { scanQrCode } from '../../framework/scan';
@@ -401,7 +401,8 @@ export default function SessionListPage(): JSX.Element {
   }
 
   const connectionIsFailed = connection.kind === 'failed';
-  const connectionIsPending = connection.kind === 'connecting';
+  // 重连中且名册为空时也算「在加载」：同样给转圈，而不是一片空白。
+  const connectionIsPending = connection.kind === 'connecting' || connection.kind === 'reconnecting';
   // 空态要用「过滤后的可见名册」判定：全部会话都被归档时，原始名册非空但列表一条不剩，
   // 这时必须给空态（对齐 Android SessionListScreen 的 listEmpty = listed.isEmpty()）。
   const isEmpty = listed.length === 0;
@@ -507,8 +508,16 @@ export default function SessionListPage(): JSX.Element {
               <EmptyState name='cloud-off' title={Strings.offlineBannerTitle} description={Strings.offlineBannerBody} />
             ) : isEmpty && connectionIsPending ? (
               // 连接中的空态是居中转圈（对齐 Android StatusOverlay 的 Connecting 分支）。
-              <View className={styles.centered}>
-                <Icon name='loader-circle' spin className={styles.centeredGlyph} />
+              // 刚扫码配对完回到这里时要隧道握手 + 拉会话列表，可能要几秒：只有一枚淡色小圈
+              // 看不出在干什么，所以配上「正在连接 <电脑名>…」和一句说明。
+              <View className={styles.loading}>
+                <Icon name='loader-circle' spin className={styles.loadingGlyph} />
+                <Text className={styles.loadingTitle}>
+                  {connection.kind === 'reconnecting'
+                    ? Strings.reconnecting
+                    : profileName === undefined ? Strings.statusConnecting : fmt(Strings.connectingTo, profileName)}
+                </Text>
+                <Text className={styles.loadingBody}>{Strings.connectingBody}</Text>
               </View>
             ) : searching && !searchPending && searchRows.sessions.length === 0 ? (
               <EmptyState name='search' title={Strings.searchNoResults} description={normalizedQuery} />
