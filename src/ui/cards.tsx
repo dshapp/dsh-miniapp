@@ -81,7 +81,29 @@ export function DetailSection(props: { title: string; children?: React.ReactNode
 }
 
 /**
- * 思考卡片：行上只露第一行，点开是全屏详情（对齐 Android ThinkCard + CardDetailDialog）。
+ * 最新一段的第一行，且这一行已经写完（后面出现了换行）；还没有就是 undefined
+ * （web ReasoningRow `latestCompletedParagraphFirstLine`）。段落以空白行分隔。
+ */
+function latestParagraphLead(text: string): string | undefined {
+  let lead: string | undefined;
+  let paragraphStart = true;
+  const lines = text.split('\n');
+  // 最后一段是正在写的行，只看写完的行。
+  for (const line of lines.slice(0, -1)) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) paragraphStart = true;
+    else if (paragraphStart) {
+      lead = trimmed;
+      paragraphStart = false;
+    }
+  }
+  return lead;
+}
+
+/**
+ * 思考卡片：行上只露一行摘要，点开是全屏详情（对齐 Android ThinkCard + CardDetailDialog）。
+ * 摘要口径对齐 web ReasoningRow：结束后是第一行；思考中跟着进度走到最新一段的第一行，
+ * 放不下时不打省略号，而是裁掉并在右侧渐隐，表示还在写。
  *
  * 详情正文是纯文本而不是 Markdown：reasoning 是模型的草稿，里面的 #、*、``` 往往是随手
  * 写的符号，按 Markdown 解析会改变原意（Android 这里用的也是 SelectionText）。
@@ -94,9 +116,11 @@ export function ThinkCard(props: {
   running?: boolean;
 }): JSX.Element {
   const { text, findQuery = '', findActive = false } = props;
+  const running = props.running === true;
   const firstLine = text.trimStart().split('\n')[0].trim();
-  const summary = firstLine.length > 0 ? firstLine : Strings.thinking;
-  const breathe = useBreathe(props.running === true);
+  const line = ((running ? latestParagraphLead(text) : undefined) ?? firstLine).split('**').join('');
+  const summary = line.length > 0 ? line : Strings.thinking;
+  const breathe = useBreathe(running);
   return (
     <View className={styles.card}>
       <View
@@ -117,7 +141,7 @@ export function ThinkCard(props: {
       >
         <Icon name='brain' className={styles.rowGlyph + ' ' + styles.tintSubtle} />
         <HighlightedText
-          className={styles.rowTitle + ' ' + styles.tintSubtle}
+          className={styles.rowTitle + ' ' + styles.tintSubtle + (running ? ' ' + styles.rowTitleStreaming : '')}
           text={summary}
           query={findQuery}
           active={findActive}
