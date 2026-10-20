@@ -8,6 +8,12 @@
 export interface FileLinkTarget {
   path: string;
   sessionId?: string;
+  /**
+   * 作者用图片语法 `![alt](…)` 写的落点：打开时按图片走 previewImage，不看扩展名
+   *（对齐 Android FileLinkTarget.image）。无扩展名的附件对象
+   * `~/.dsh/attachments/v1/objects/<sha256>` 靠它才不会掉进文本预览。
+   */
+  image?: boolean;
 }
 
 const RESOURCE_PREFIX = 'dsh-resource://file/';

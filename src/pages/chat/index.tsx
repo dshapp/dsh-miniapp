@@ -138,8 +138,9 @@ export default function ChatPage(): JSX.Element {
    * 图片读不回来只弹一条「无法打开这张图片」，不回落到文本预览——拿文本打开二进制
    * 只会看到乱码。
    */
-  const openFileLink = React.useCallback((path: string, scopeSessionId: string): void => {
-    if (!isImageFile(path)) {
+  const openFileLink = React.useCallback((path: string, scopeSessionId: string, image = false): void => {
+    // 图片语法写的落点（image）不看扩展名：附件对象没有扩展名（对齐 Android openFileLink）。
+    if (!image && !isImageFile(path)) {
       setPreview({ path, sessionId: scopeSessionId });
       return;
     }
@@ -455,7 +456,7 @@ export default function ChatPage(): JSX.Element {
           findQuery={finding && findQuery.trim().length > 0 ? findQuery : ''}
           findActive={active}
           onOpenFile={path => openFileLink(path, sessionId)}
-          onOpenFileLink={target => openFileLink(target.path, target.sessionId ?? sessionId)}
+          onOpenFileLink={target => openFileLink(target.path, target.sessionId ?? sessionId, target.image === true)}
           referencedSessions={referencedSessions}
           onOpenSession={openSession}
           onFork={seq => forkAtSeq(seq)}
@@ -490,7 +491,7 @@ export default function ChatPage(): JSX.Element {
           sessionId={sessionId}
           cwd={cwd}
           onOpenFile={path => openFileLink(path, sessionId)}
-          onOpenFileLink={target => openFileLink(target.path, target.sessionId ?? sessionId)}
+          onOpenFileLink={target => openFileLink(target.path, target.sessionId ?? sessionId, target.image === true)}
           referencedSessions={referencedSessions}
           onOpenSession={openSession}
         />

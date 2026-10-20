@@ -19,7 +19,7 @@ import { resolveMention } from '../model/format';
 import { decodeEntities } from '../model/markdownText';
 import { findTransformAutolinks, isSafeExternalUrl } from '../model/gfmAutolink';
 import { lex, type AutolinkToken } from '../model/markdownLexer';
-import { isImageFile } from '../model/imageFileType';
+import { isImageDestination } from '../model/imageFileType';
 import styles from './markdown.module.scss';
 
 /** 递归渲染时一路携带的上下文：查找高亮口径 + 是否紧凑排版 + 文件链接回调。 */
@@ -166,8 +166,9 @@ function imageAction(href: string, ctx: RenderContext): (() => void) | undefined
   }
   const target = parseFileLink(address);
   const open = ctx.onOpenFileLink;
-  if (target === undefined || open === undefined || !isImageFile(target.path)) return undefined;
-  return () => open(target);
+  // 无扩展名也算（附件对象没有扩展名，见 isImageDestination）；打开时带上 image 标记。
+  if (target === undefined || open === undefined || !isImageDestination(target.path)) return undefined;
+  return () => open({ ...target, image: true });
 }
 
 /**

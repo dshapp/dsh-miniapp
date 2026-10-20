@@ -22,3 +22,16 @@ export function fileExtension(path: string): string {
 export function isImageFile(path: string): boolean {
   return IMAGE_EXTENSIONS.has(fileExtension(path));
 }
+
+/**
+ * 图片语法 `![alt](path)` 的落点能不能当图片去读：图片扩展名，或者**没有扩展名**
+ *（对齐 Android ImageFileType.isImageDestination）。
+ *
+ * 截图类附件存成 `~/.dsh/attachments/v1/objects/<sha256>`，没有扩展名。Web 的 <img> 与
+ * Mac 的 NSImage 都按内容解码，两端都能显示；只认扩展名的话这里只剩 alt 文字。无扩展名时
+ * 交给读回后的图片查看器按内容判，明确的非图片扩展名（.txt…）仍不当图片。
+ */
+export function isImageDestination(path: string): boolean {
+  const extension = fileExtension(path);
+  return extension.length === 0 || IMAGE_EXTENSIONS.has(extension);
+}

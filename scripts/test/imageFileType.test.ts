@@ -1,7 +1,7 @@
 /** 图片扩展名判定：逐条对照安卓 model/ImageFileTypeTest。 */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isImageFile } from '../../src/model/imageFileType';
+import { isImageDestination, isImageFile } from '../../src/model/imageFileType';
 
 test('识别 web 的整组图片扩展名', () => {
   const images = [
@@ -38,4 +38,15 @@ test('认 Windows 分隔符', () => {
 test('目录里的点不影响无扩展名文件', () => {
   assert.equal(isImageFile('/tmp/v1.2/README'), false);
   assert.equal(isImageFile('/tmp/a.png/file'), false);
+});
+
+test('图片语法的落点：无扩展名的附件对象也当图片（对齐安卓 isImageDestination）', () => {
+  // 回归：![…](</Users/u/.dsh/attachments/v1/objects/80/80523a84…>) 只剩 alt 文字。
+  assert.equal(isImageDestination('/Users/u/.dsh/attachments/v1/objects/80/80523a84ba40b9b6'), true);
+  assert.equal(isImageDestination('/tmp/v1.2/shot'), true);
+  assert.equal(isImageDestination('/tmp/shot.PNG'), true);
+  assert.equal(isImageDestination('/tmp/notes.txt'), false);
+  assert.equal(isImageDestination('/tmp/archive.png.zip'), false);
+  // 普通文件链接的分流不变。
+  assert.equal(isImageFile('/Users/u/.dsh/attachments/v1/objects/80/80523a84ba40b9b6'), false);
 });
