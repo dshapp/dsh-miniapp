@@ -1,7 +1,8 @@
 import React from 'react';
 import { Text, View } from '@tarojs/components';
 import { Strings, fmt } from '../../i18n/strings';
-import { back, openPage, pageRoutes } from '../../framework/page';
+import { back } from '../../framework/page';
+import { openChatSession } from '../../framework/wideLayout';
 import { toast } from '../../framework/req';
 import { EmptyState } from '../../ui/emptyState';
 import { Icon } from '../../ui/icon';
@@ -75,7 +76,8 @@ export default function ArchivedSessionsPage(): JSX.Element {
   }, [model]);
 
   const openSession = React.useCallback((sessionId: SessionId): void => {
-    openPage(pageRoutes.CHAT, { sessionId });
+    // 宽屏：回到首页并排页，在右栏显示（见 framework/wideLayout.ts）。
+    openChatSession(sessionId);
   }, []);
 
   const body = (): JSX.Element => {

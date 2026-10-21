@@ -2,6 +2,7 @@ import React from 'react';
 import { Input, Text, View } from '@tarojs/components';
 import type { BaseEventOrig, InputProps } from '@tarojs/components';
 import { navMetrics } from '../framework/navbar';
+import { useWindowWidth } from '../framework/wideLayout';
 import type { NavMetrics } from '../model/navBarMetrics';
 import { Icon, type LucideIconName } from './icon';
 import styles from './navBar.module.scss';
@@ -50,11 +51,19 @@ export interface NavBarProps {
    * 小程序这里的"居中"是相对于让开胶囊之后的可用宽度，不是屏幕正中——否则标题
    * 看上去会被胶囊往左推一截。 */
   centerTitle?: boolean;
+  /**
+   * 是否给右上角胶囊让位（默认让）。宽屏并排页的左栏顶栏在胶囊左边很远的地方，
+   * 再让一截只会把动作按钮无端往里挤；胶囊上方的右栏顶栏照常让位。
+   */
+  capsuleInset?: boolean;
   className?: string;
 }
 
 export function NavBar(props: NavBarProps): JSX.Element {
+  // 订阅窗口宽度：转屏后顶栏度量会重测（见 framework/wideLayout.ts），这里跟着重画。
+  useWindowWidth();
   const metrics = navMetrics();
+  const rightInset = props.capsuleInset === false ? 8 : metrics.rightInset;
   const mode = props.mode ?? 'sticky';
   const className = [
     styles.bar,
@@ -69,7 +78,7 @@ export function NavBar(props: NavBarProps): JSX.Element {
     .join(' ');
   return (
     <View className={className} style={{ paddingTop: metrics.statusBarHeight + 'px', height: metrics.totalHeight + 'px' }}>
-      <View className={styles.row} style={{ height: metrics.barHeight + 'px', paddingRight: metrics.rightInset + 'px' }}>
+      <View className={styles.row} style={{ height: metrics.barHeight + 'px', paddingRight: rightInset + 'px' }}>
         {props.left === undefined ? null : <View className={styles.leading}>{props.left}</View>}
         <View className={styles.titleSlot + (props.centerTitle === true ? ' ' + styles.titleCentered : '')}>
           {props.title}

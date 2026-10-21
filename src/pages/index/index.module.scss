@@ -82,6 +82,18 @@
   padding: 0 16px;
 }
 
+/* 宽屏并排页右栏正在显示的会话：左右内缩的一块圆角底（对齐 Mac 边栏 / 安卓 secondaryContainer）。 */
+.rowSelected {
+  margin: 0 6px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: var(--dsh-color-primary-container);
+}
+
+.rowSelected .rowTitle {
+  color: var(--dsh-color-on-primary-container);
+}
+
 .rowTitle {
   flex: 1;
   /* 对齐 M3 ListItem headline bodyLarge（16sp）。 */
@@ -189,4 +201,50 @@
   font-size: 14px;
   color: var(--dsh-color-text-sub);
   text-align: center;
+}
+
+/*
+ * 宽屏（平板、横屏）并排布局：左栏会话列表、右栏会话详情，整页不滚动，两栏各自滚。
+ * 对齐安卓 WideSessionLayout 与 Mac 的边栏 + 详情。
+ */
+.split {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--dsh-color-card);
+}
+
+.listPane {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  height: 100%;
+  box-sizing: border-box;
+  background: var(--dsh-color-card);
+  border-right: 1px solid var(--dsh-color-border);
+}
+
+.listScroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.listInner {
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
+.detailPane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  background: var(--dsh-color-bg);
+}
+
+.detailPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
 }

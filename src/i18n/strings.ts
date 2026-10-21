@@ -99,6 +99,9 @@ const TABLE = {
   deny: ['Deny', '拒绝'],
   searchSessions: ['Search sessions', '搜索会话'],
   newSession: ['New Session', '新建会话'],
+  // 宽屏并排页右栏还没选会话时的占位（对齐 Android selectSessionTitle / selectSessionHint）。
+  selectSessionTitle: ['No session selected', '未选择会话'],
+  selectSessionHint: ['Pick a session on the left, or start a new one.', '从左侧选择一个会话，或新建一个会话。'],
   workspace: ['Workspace', '工作区'],
   connection: ['Connection', '连接'],
   /** 列表左上角状态点的读屏标签（对齐 Android ConnectionDot 的 contentDescription）。 */

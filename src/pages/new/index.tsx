@@ -2,7 +2,8 @@ import React from 'react';
 import { Text, View } from '@tarojs/components';
 import { Icon } from '../../ui/icon';
 import { Strings } from '../../i18n/strings';
-import { back, openPage, pageParams, pageRoutes } from '../../framework/page';
+import { back, pageParams } from '../../framework/page';
+import { openChatSession } from '../../framework/wideLayout';
 import { ComposerBar } from '../../ui/composerBar';
 import { NavBar, NavIconButton } from '../../ui/navBar';
 import { getAppModel } from '../../state/appModel';
@@ -140,7 +141,8 @@ export default function NewSessionPage(): JSX.Element {
               model.rememberNewSessionWorkspace(workspaceId);
               // 发出第一条消息后这页就没用了：换成会话页，返回键直接回到列表
               // （对齐 Android App.kt 的 onCreated → navigate(chat) + popUpTo(new)）。
-              openPage(pageRoutes.CHAT, { sessionId: created }, true);
+              // 宽屏：回到并排页、在右栏显示新会话（见 framework/wideLayout.ts）。
+              openChatSession(created, true);
             }}
           />
         )}

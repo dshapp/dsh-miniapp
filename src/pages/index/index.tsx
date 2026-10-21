@@ -1,10 +1,18 @@
 import React from 'react';
-import { Text, View } from '@tarojs/components';
+import { ScrollView, Text, View } from '@tarojs/components';
 import Taro, { useDidShow, usePullDownRefresh, useReachBottom } from '@tarojs/taro';
 import { Strings, fmt } from '../../i18n/strings';
 import { openPage, pageRoutes } from '../../framework/page';
 import { openPairing } from '../../framework/pairingEntry';
 import { scanQrCode } from '../../framework/scan';
+import {
+  indexPageOnTop,
+  listPaneWidth,
+  splitSelectionStore,
+  useWideLayout,
+  useWindowWidth,
+} from '../../framework/wideLayout';
+import { ChatView } from '../chat/chatView';
 
 import { ActionMenu, anchorFromEvent } from '../../ui/actionMenu';
 import type { ActionMenuAnchor, ActionMenuItem } from '../../ui/actionMenu';
@@ -61,6 +69,8 @@ function SessionRow(props: {
   summary: SessionSummary;
   icon: { name: LucideIconName; spin?: boolean; className: string };
   trailing: ReturnType<typeof resolveSessionRowTrailing>;
+  /** 宽屏并排页右栏正在显示的会话：整行铺一块圆角底（对齐 Mac 边栏的选中态）。 */
+  selected?: boolean;
   onOpen: () => void;
   onLongPress: (event: unknown) => void;
 }): JSX.Element {
@@ -69,7 +79,7 @@ function SessionRow(props: {
   const title = sessionListTitle(props.summary, liveTitle.length > 0 ? liveTitle : undefined);
   return (
     <View
-      className={styles.row}
+      className={styles.row + (props.selected === true ? ' ' + styles.rowSelected : '')}
       onClick={props.onOpen}
       onLongPress={event => {
         // 长按给一次轻震（对齐 Android combinedClickable 的触觉反馈）
@@ -158,9 +168,29 @@ export default function SessionListPage(): JSX.Element {
   // 顶栏高度：把视图选项菜单锚到右上角动作按钮下面（安卓是 DropdownMenu 锚在按钮上）。
   const { totalHeight: navHeight } = useNavMetrics();
 
+  // 宽屏（平板、横屏）：会话列表与会话详情并排在这一页，点行只换右栏（对齐 Mac / 安卓）。
+  const windowWidth = useWindowWidth();
+  const wide = useWideLayout();
+  const selectedSessionId = useStore(splitSelectionStore);
+  const paneWidth = listPaneWidth(windowWidth);
+
   useDidShow(() => {
     model.onForeground();
+    // 窄屏回到列表就是「没有在看哪条会话」：清掉右栏选择，免得之后转成横屏时冒出一条
+    // 很早以前选过的会话（宽屏下保留：从归档页、新建页回来正是要显示带回来的那条）。
+    if (!wide) splitSelectionStore.set(undefined);
   });
+
+  // 宽 → 窄（转回竖屏、iPad 分屏拖窄）：右栏有会话就推一页会话页，眼前的内容不丢；
+  // 返回键回到列表。只在首页是栈顶时做，被盖在设置页等下面时不抢导航。
+  const previousWide = React.useRef(wide);
+  React.useEffect(() => {
+    const was = previousWide.current;
+    previousWide.current = wide;
+    if (!was || wide) return;
+    const sessionId = splitSelectionStore.get();
+    if (sessionId !== undefined && indexPageOnTop()) openPage(pageRoutes.CHAT, { sessionId });
+  }, [wide]);
 
   usePullDownRefresh(async () => {
     await model.pullToRefresh();
@@ -246,9 +276,18 @@ export default function SessionListPage(): JSX.Element {
 
   const archivedSet = new Set(archivedIds);
 
+  // 右栏的会话被归档了：别留着一页已归档的会话，退回空白占位。
+  React.useEffect(() => {
+    if (selectedSessionId === undefined) return;
+    if (archivedIds.includes(selectedSessionId) || listArchivedIds.includes(selectedSessionId)) {
+      splitSelectionStore.set(undefined);
+    }
+  }, [selectedSessionId, archivedIds, listArchivedIds]);
+
   const openSession = React.useCallback((sessionId: SessionId) => {
-    openPage(pageRoutes.CHAT, { sessionId });
-  }, []);
+    if (wide) splitSelectionStore.set(sessionId);
+    else openPage(pageRoutes.CHAT, { sessionId });
+  }, [wide]);
 
   // 行长按菜单与视图菜单改自绘锚定浮层（对齐 Android SessionListScreen 的 DropdownMenu +
   // leadingIcon/勾选态）；wx.showActionSheet 是底部系统面板、无图标也无选中态。
@@ -337,8 +376,9 @@ export default function SessionListPage(): JSX.Element {
     setCollapsed(current => (current.includes(id) ? current.filter(item => item !== id) : [...current, id]));
   }, []);
 
-  useReachBottom(() => {
-    // 滚到底自动翻一页：比让用户去点「再显示 N 个」顺手，按钮仍然保留给分组很短的情况。
+  // 滚到底自动翻一页：比让用户去点「再显示 N 个」顺手，按钮仍然保留给分组很短的情况。
+  // 窄屏是整页滚动（useReachBottom），宽屏左栏是自己的 ScrollView（onScrollToLower）。
+  const loadMoreRows = (): void => {
     setPages(current => {
       const next: Record<string, number> = { ...current };
       for (const group of groups) {
@@ -347,7 +387,8 @@ export default function SessionListPage(): JSX.Element {
       }
       return next;
     });
-  });
+  };
+  useReachBottom(loadMoreRows);
 
   const rows: React.ReactNode[] = [];
   if (searching) {
@@ -430,124 +471,176 @@ export default function SessionListPage(): JSX.Element {
     );
   }
 
+  /* 顶栏对齐 Android SessionListScreen 的 TopAppBar：
+     普通态 = 连接状态点（进设置）+ 机器名 + 搜索 / 视图 / 新建；
+     搜索态 = 返回键 + 标题位变成一行无边框输入 + 清除。
+     宽屏左栏里它是 flex 列的第一项（flow），右上角胶囊在右栏上方，不必让位。 */
+  const navBar = (
+    <NavBar
+      mode={wide ? 'flow' : 'sticky'}
+      capsuleInset={!wide}
+      left={
+        finding ? (
+          <NavIconButton
+            name='arrow-left'
+            onClick={() => { setFinding(false); setQuery(''); model.search(''); }}
+          />
+        ) : (
+          <View
+            className={styles.statusDotButton}
+            aria-label={Strings.connectionStateLabel}
+            onClick={() => openPage(pageRoutes.SETTINGS)}
+          >
+            <View className={styles.statusDot + ' ' + dotClass(connection)} />
+          </View>
+        )
+      }
+      title={
+        finding ? (
+          <NavSearchInput
+            value={query}
+            focus={searchFocused}
+            placeholder={Strings.searchSessions}
+            onInput={value => setQuery(sanitizeSearchQuery(value))}
+          />
+        ) : (
+          <NavTitle text={profileName ?? Strings.appName} />
+        )
+      }
+      actions={
+        finding ? (
+          // 清除只清文字并把光标留在框里，退出搜索交给左上角返回键，二者不混用
+          // （对齐 Android 的注释与实现）。
+          query.length === 0 ? null : (
+            <NavIconButton
+              name='x'
+              ariaLabel={Strings.close}
+              onClick={() => {
+                setQuery('');
+                model.search('');
+                // focus 是受控的：先置假再置真，光标才会回到输入框。
+                setSearchFocused(false);
+                setTimeout(() => setSearchFocused(true), 0);
+              }}
+            />
+          )
+        ) : (
+          <React.Fragment>
+            <NavIconButton
+              name='search'
+              ariaLabel={Strings.searchSessions}
+              onClick={() => { setFinding(true); setSearchFocused(true); }}
+            />
+            <NavIconButton
+              name='list-filter'
+              ariaLabel={Strings.viewOptions}
+              onClick={() => setViewMenu({ x: wide ? paneWidth : getSystemInfo().windowWidth ?? 375, y: navHeight })}
+            />
+            <NavIconButton name='plus' ariaLabel={Strings.newSession} onClick={() => openPage(pageRoutes.NEW)} />
+          </React.Fragment>
+        )
+      }
+    />
+  );
+
+  const listBody = (
+  <React.Fragment>
+    {rows}
+
+    {/* 四个空态互斥，按 Android StatusOverlay 的 when 次序取第一条命中的：
+        并列判断会让「搜索无结果 + 名册为空 + 连接失败」同时画出两层提示。 */}
+    {/* 只有真的要画空态时才铺这层居中容器：有行的时候它不能占位。 */}
+    {isEmpty || (searching && !searchPending && searchRows.sessions.length === 0) ? (
+      <View className={styles.stateArea}>
+        {isEmpty && connectionIsFailed ? (
+          <EmptyState name='cloud-off' title={Strings.offlineBannerTitle} description={Strings.offlineBannerBody} />
+        ) : isEmpty && connectionIsPending ? (
+          // 连接中的空态是居中转圈（对齐 Android StatusOverlay 的 Connecting 分支）。
+          // 刚扫码配对完回到这里时要隧道握手 + 拉会话列表，可能要几秒：只有一枚淡色小圈
+          // 看不出在干什么，所以配上「正在连接 <电脑名>…」和一句说明。
+          <View className={styles.loading}>
+            <Icon name='loader-circle' spin className={styles.loadingGlyph} />
+            <Text className={styles.loadingTitle}>
+              {connection.kind === 'reconnecting'
+                ? Strings.reconnecting
+                : profileName === undefined ? Strings.statusConnecting : fmt(Strings.connectingTo, profileName)}
+            </Text>
+            <Text className={styles.loadingBody}>{Strings.connectingBody}</Text>
+          </View>
+        ) : searching && !searchPending && searchRows.sessions.length === 0 ? (
+          <EmptyState name='search' title={Strings.searchNoResults} description={normalizedQuery} />
+        ) : !searching && isEmpty && connection.kind === 'connected' ? (
+          <EmptyState name='message-circle' title={Strings.noSessions} />
+        ) : null}
+      </View>
+    ) : null}
+  </React.Fragment>
+  );
+
+  const overlays = (
+  <React.Fragment>
+    <ActionMenu anchor={rowMenu?.anchor} items={rowMenuItems} onSelect={selectRowMenu} onClose={() => setRowMenu(undefined)} width={168} />
+    <ActionMenu anchor={groupMenu?.anchor} items={groupMenuItems} onSelect={selectGroupMenu} onClose={() => setGroupMenu(undefined)} width={200} />
+    <ActionMenu anchor={viewMenu} items={viewMenuItems} onSelect={selectViewMenu} onClose={() => setViewMenu(undefined)} width={200} />
+    <EditDialog
+      open={renameTarget !== undefined}
+      title={Strings.rename}
+      label={Strings.rename}
+      // 预填会话自己的标题（对齐 Android sessionStoredTitle），实时标题优先；未命名就留空。
+      initial={renameTarget === undefined ? '' : model.sessionStoredTitle(renameTarget.sessionId)}
+      onSubmit={value => {
+        const target = renameTarget;
+        setRenameTarget(undefined);
+        if (target !== undefined) void model.renameSession(target.sessionId, value);
+      }}
+      onClose={() => setRenameTarget(undefined)}
+    />
+  </React.Fragment>
+  );
+
+  if (wide) {
+    return (
+      <PageShell>
+        <View className={styles.split}>
+          <View className={styles.listPane} style={{ width: paneWidth + 'px' }}>
+            {navBar}
+            <ScrollView scrollY className={styles.listScroll} lowerThreshold={120} onScrollToLower={loadMoreRows}>
+              <View className={styles.listInner}>{listBody}</View>
+            </ScrollView>
+          </View>
+          <View className={styles.detailPane}>
+            {selectedSessionId === undefined ? (
+              <View className={styles.detailPlaceholder}>
+                <EmptyState
+                  name='message-circle'
+                  title={Strings.selectSessionTitle}
+                  description={Strings.selectSessionHint}
+                  actionText={Strings.newSession}
+                  onAction={() => openPage(pageRoutes.NEW)}
+                />
+              </View>
+            ) : (
+              // 换一条会话就是换一页：滚动位置、查找状态这些页内状态不沿用上一条的。
+              <ChatView
+                key={selectedSessionId}
+                sessionId={selectedSessionId}
+                embedded
+                onOpenSession={id => splitSelectionStore.set(id)}
+              />
+            )}
+          </View>
+        </View>
+        {overlays}
+      </PageShell>
+    );
+  }
+
   return (
     <PageShell>
       <View className={styles.page}>
-        {/* 顶栏对齐 Android SessionListScreen 的 TopAppBar：
-            普通态 = 连接状态点（进设置）+ 机器名 + 搜索 / 视图 / 新建；
-            搜索态 = 返回键 + 标题位变成一行无边框输入 + 清除。 */}
-        <NavBar
-          left={
-            finding ? (
-              <NavIconButton
-                name='arrow-left'
-                onClick={() => { setFinding(false); setQuery(''); model.search(''); }}
-              />
-            ) : (
-              <View
-                className={styles.statusDotButton}
-                aria-label={Strings.connectionStateLabel}
-                onClick={() => openPage(pageRoutes.SETTINGS)}
-              >
-                <View className={styles.statusDot + ' ' + dotClass(connection)} />
-              </View>
-            )
-          }
-          title={
-            finding ? (
-              <NavSearchInput
-                value={query}
-                focus={searchFocused}
-                placeholder={Strings.searchSessions}
-                onInput={value => setQuery(sanitizeSearchQuery(value))}
-              />
-            ) : (
-              <NavTitle text={profileName ?? Strings.appName} />
-            )
-          }
-          actions={
-            finding ? (
-              // 清除只清文字并把光标留在框里，退出搜索交给左上角返回键，二者不混用
-              // （对齐 Android 的注释与实现）。
-              query.length === 0 ? null : (
-                <NavIconButton
-                  name='x'
-                  ariaLabel={Strings.close}
-                  onClick={() => {
-                    setQuery('');
-                    model.search('');
-                    // focus 是受控的：先置假再置真，光标才会回到输入框。
-                    setSearchFocused(false);
-                    setTimeout(() => setSearchFocused(true), 0);
-                  }}
-                />
-              )
-            ) : (
-              <React.Fragment>
-                <NavIconButton
-                  name='search'
-                  ariaLabel={Strings.searchSessions}
-                  onClick={() => { setFinding(true); setSearchFocused(true); }}
-                />
-                <NavIconButton
-                  name='list-filter'
-                  ariaLabel={Strings.viewOptions}
-                  onClick={() => setViewMenu({ x: getSystemInfo().windowWidth ?? 375, y: navHeight })}
-                />
-                <NavIconButton name='plus' ariaLabel={Strings.newSession} onClick={() => openPage(pageRoutes.NEW)} />
-              </React.Fragment>
-            )
-          }
-        />
-
-
-        {rows}
-
-        {/* 四个空态互斥，按 Android StatusOverlay 的 when 次序取第一条命中的：
-            并列判断会让「搜索无结果 + 名册为空 + 连接失败」同时画出两层提示。 */}
-        {/* 只有真的要画空态时才铺这层居中容器：有行的时候它不能占位。 */}
-        {isEmpty || (searching && !searchPending && searchRows.sessions.length === 0) ? (
-          <View className={styles.stateArea}>
-            {isEmpty && connectionIsFailed ? (
-              <EmptyState name='cloud-off' title={Strings.offlineBannerTitle} description={Strings.offlineBannerBody} />
-            ) : isEmpty && connectionIsPending ? (
-              // 连接中的空态是居中转圈（对齐 Android StatusOverlay 的 Connecting 分支）。
-              // 刚扫码配对完回到这里时要隧道握手 + 拉会话列表，可能要几秒：只有一枚淡色小圈
-              // 看不出在干什么，所以配上「正在连接 <电脑名>…」和一句说明。
-              <View className={styles.loading}>
-                <Icon name='loader-circle' spin className={styles.loadingGlyph} />
-                <Text className={styles.loadingTitle}>
-                  {connection.kind === 'reconnecting'
-                    ? Strings.reconnecting
-                    : profileName === undefined ? Strings.statusConnecting : fmt(Strings.connectingTo, profileName)}
-                </Text>
-                <Text className={styles.loadingBody}>{Strings.connectingBody}</Text>
-              </View>
-            ) : searching && !searchPending && searchRows.sessions.length === 0 ? (
-              <EmptyState name='search' title={Strings.searchNoResults} description={normalizedQuery} />
-            ) : !searching && isEmpty && connection.kind === 'connected' ? (
-              <EmptyState name='message-circle' title={Strings.noSessions} />
-            ) : null}
-          </View>
-        ) : null}
-
-
-        <ActionMenu anchor={rowMenu?.anchor} items={rowMenuItems} onSelect={selectRowMenu} onClose={() => setRowMenu(undefined)} width={168} />
-        <ActionMenu anchor={groupMenu?.anchor} items={groupMenuItems} onSelect={selectGroupMenu} onClose={() => setGroupMenu(undefined)} width={200} />
-        <ActionMenu anchor={viewMenu} items={viewMenuItems} onSelect={selectViewMenu} onClose={() => setViewMenu(undefined)} width={200} />
-        <EditDialog
-          open={renameTarget !== undefined}
-          title={Strings.rename}
-          label={Strings.rename}
-          // 预填会话自己的标题（对齐 Android sessionStoredTitle），实时标题优先；未命名就留空。
-          initial={renameTarget === undefined ? '' : model.sessionStoredTitle(renameTarget.sessionId)}
-          onSubmit={value => {
-            const target = renameTarget;
-            setRenameTarget(undefined);
-            if (target !== undefined) void model.renameSession(target.sessionId, value);
-          }}
-          onClose={() => setRenameTarget(undefined)}
-        />
+        {navBar}
+        {listBody}
+        {overlays}
       </View>
     </PageShell>
   );
@@ -566,9 +659,10 @@ export default function SessionListPage(): JSX.Element {
       erroredIds.has(summary.sessionId),
       pinnedIds.includes(summary.sessionId),
     );
+    const selected = wide && summary.sessionId === selectedSessionId;
     const trailing = resolveSessionRowTrailing(
       awaiting,
-      false,
+      selected,
       archivedSet.has(summary.sessionId),
       summary.blank,
       draftIds.has(summary.sessionId),
@@ -580,6 +674,7 @@ export default function SessionListPage(): JSX.Element {
         summary={summary}
         icon={icon}
         trailing={trailing}
+        selected={selected}
         onOpen={() => openSession(summary.sessionId)}
         onLongPress={event => setRowMenu({ anchor: anchorFromEvent(event), summary })}
       />

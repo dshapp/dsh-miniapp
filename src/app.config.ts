@@ -18,7 +18,12 @@ export default defineAppConfig({
     navigationBarTitleText: 'DeepSeek Harness',
     navigationBarTextStyle: 'black',
     backgroundColor: '#f5f6f8',
+    // 跟随设备方向旋转：手机横屏时首页切成「会话列表 + 会话详情」并排（framework/wideLayout.ts）。
+    // 不配的话小程序永远锁竖屏，横屏布局根本没有机会出现。
+    pageOrientation: 'auto',
   },
+  // iPad / 安卓平板上允许转屏与分屏拖动窗口大小（宽屏并排布局随 onWindowResize 切换）。
+  resizable: true,
   // 这里曾有 permission['scope.camera'].desc，但 app.json 的 permission 只接受
   // 位置类 scope（scope.userLocation 等），相机不在其中，基础库会直接报
   // invalid app.json permission["scope.camera"]。相机授权由 wx.scanCode 首次调用时
