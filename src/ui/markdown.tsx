@@ -446,7 +446,8 @@ function renderTableRow(
  * 微信新基础库认 user-select，老基础库只认 selectable，两个都给才在真机上都能选。
  *
  * 另一件事是图片：小程序的 Text 只接受文本子节点，Image 塞进去不会渲染，所以段落里
- * 顶层的图片要提出来单独成块，剩下的部分才继续当一段文本排版。
+ * 顶层的图片要提出来单独成块，剩下的部分才继续当一段文本排版。远程图加载失败后不再
+ * 需要 Image，失败文案回到所在那段文字流里（对齐 Web 的行内 span），不另起一行。
  */
 function InlineFlow(props: {
   tokens: Token[] | undefined;
@@ -456,6 +457,8 @@ function InlineFlow(props: {
 }): JSX.Element {
   const { ctx, className, style } = props;
   const tokens = props.tokens ?? [];
+  // 加载失败的远程图地址：失败只发生一次、不重试，记在段落这一层好把它排回文字流。
+  const [failed, setFailed] = useState<readonly string[]>([]);
   if (!tokens.some((token) => token.type === 'image')) {
     return (
       <Text className={className} style={style} selectable userSelect>
@@ -474,14 +477,32 @@ function InlineFlow(props: {
     if (blank) return;
     parts.push(
       <Text key={'t' + parts.length} className={className} style={style} selectable userSelect>
-        {renderInline(current, ctx)}
+        {current.map((token, index) =>
+          token.type === 'image' ? (
+            <ImageFailedText key={index} token={token as Tokens.Image} />
+          ) : (
+            <InlineToken key={index} token={token} ctx={ctx} />
+          ),
+        )}
       </Text>,
     );
   };
   tokens.forEach((token) => {
     if (token.type === 'image') {
+      const href = (token as Tokens.Image).href.trim();
+      if (failed.includes(href)) {
+        run.push(token);
+        return;
+      }
       flush();
-      parts.push(<MarkdownImage key={'i' + parts.length} token={token as Tokens.Image} ctx={ctx} />);
+      parts.push(
+        <MarkdownImage
+          key={'i' + parts.length}
+          token={token as Tokens.Image}
+          ctx={ctx}
+          onFail={() => setFailed((list) => (list.includes(href) ? list : [...list, href]))}
+        />,
+      );
       return;
     }
     run.push(token);
@@ -497,23 +518,14 @@ function InlineFlow(props: {
  * 系统预览；工作区路径在这一层拿不到字节，画成可点的图片占位，点击交给宿主（与文件链接
  * 同一条通路）读回本机再打开图片查看器。无论如何都不用 alt 文本冒充图片。
  */
-function MarkdownImage(props: { token: Tokens.Image; ctx: RenderContext }): JSX.Element {
-  const { token, ctx } = props;
+function MarkdownImage(props: { token: Tokens.Image; ctx: RenderContext; onFail: () => void }): JSX.Element {
+  const { token, ctx, onFail } = props;
   const href = token.href.trim();
   const label = token.text.length > 0 ? decodeEntities(token.text) : fileLinkBasename(href) || href;
   const action = imageAction(href, ctx);
-  // 远程图要求域名配在小程序的业务域名白名单里，加载失败时退回占位，不留一块空白。
-  const [broken, setBroken] = useState(false);
-  if (REMOTE_IMAGE.test(href) && !broken) {
-    return (
-      <Image
-        className={styles.image}
-        src={href}
-        mode='widthFix'
-        onError={() => setBroken(true)}
-        onClick={action}
-      />
-    );
+  // 远程图（还要求域名配在业务域名白名单里）加载失败交给段落换成失败文案，见 ImageFailedText。
+  if (REMOTE_IMAGE.test(href)) {
+    return <Image className={styles.image} src={href} mode='widthFix' onError={onFail} onClick={action} />;
   }
   if (action === undefined) {
     return (
@@ -529,6 +541,20 @@ function MarkdownImage(props: { token: Tokens.Image; ctx: RenderContext }): JSX.
         {label}
       </Text>
     </View>
+  );
+}
+
+/**
+ * 远程图真的去加载了却失败：对齐 Web 的 `.imageAlt`「图片无法预览 · alt」，三级弱化色斜体，
+ * 不可点、不重试，嵌在所在段落的文字流里。alt 为空时用原始地址。
+ */
+function ImageFailedText(props: { token: Tokens.Image }): JSX.Element {
+  const { token } = props;
+  const alt = decodeEntities(token.text) || token.href.trim();
+  return (
+    <Text className={styles.imageAlt} style={{ color: color_text_faint }}>
+      {Strings.imagePreviewUnavailable + ' · ' + alt}
+    </Text>
   );
 }
 

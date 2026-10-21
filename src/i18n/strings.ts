@@ -277,6 +277,8 @@ const TABLE = {
   operationFailed: ['Something went wrong. Please try again.', '操作失败，请重试。'],
   /** 图片取不到内容（与「打开失败」区分）。 */
   imageUnavailable: ['Image unavailable', '图片不可用'],
+  /** Markdown 里的远程图加载失败（对齐 Web `image.failed`），后面接「 · alt」。 */
+  imagePreviewUnavailable: ['Image preview unavailable', '图片无法预览'],
   // 圈选元素 XML 的卡片（与 Android xmlCardsViewAll / xmlCardText、Mac、插件同文案）。
   xmlCardsViewAll: ['View all %d elements', '查看全部 %d 个元素'],
   xmlCardText: ['text', '文本'],
