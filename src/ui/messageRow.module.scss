@@ -511,6 +511,81 @@
   color: var(--dsh-color-text);
 }
 
+/* 计划卡（web ui-plan PlanCards）：改动文件卡之后、页脚操作行之前，多张纵向排。 */
+.planCards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.planCard {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  height: 60px;
+  padding: 8px 10px;
+  border: 1px solid var(--dsh-color-border);
+  border-radius: var(--dsh-radius-card);
+  background: var(--dsh-color-card);
+}
+
+.planCardIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--dsh-color-border);
+  border-radius: 10px;
+}
+
+.planCardGlyph {
+  font-size: 20px;
+  color: var(--dsh-color-text-sub);
+}
+
+.planCardText {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.planCardTitle {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--dsh-color-text);
+}
+
+.planCardKind {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--dsh-color-text-faint);
+}
+
+.planCardOpen {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--dsh-color-border);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsh-color-text);
+}
+
 /*
  * 轮次页脚：按钮、统计胶囊、结束时刻排成一行。
  * 窄屏放不下四个胶囊时允许换行，宁可折成两行也不横向溢出。

@@ -10,7 +10,7 @@ import {
   type SubagentListEntry,
   type TokenUsage,
 } from './types';
-import type { ChatNode, TurnProcessSpec } from './chatNode';
+import type { ChatNode, SubmittedPlan, TurnProcessSpec } from './chatNode';
 
 // 轮次页脚格式化（与 iOS/web 同口径）——————————————————————————
 
@@ -413,6 +413,14 @@ export function presentedFiles(seq: number, data: JsonElement | undefined): [num
     files.push({ seq, index, path, description: str(jget(entry, 'description')) });
   });
   return files.length === 0 ? undefined : [turn, files];
+}
+
+/** exit_plan_mode 的 `plan` 参数；没有开头 `# ` 标题的计划不出卡片（web ui-plan `planDefinition`）。 */
+export function submittedPlan(callId: string, argsRaw: string): SubmittedPlan | undefined {
+  const markdown = parseArgsMap(argsRaw)?.plan;
+  if (typeof markdown !== 'string') return undefined;
+  const title = /^#\s+(\S[^\r\n]*)/.exec(markdown.trim())?.[1];
+  return title === undefined ? undefined : { callId, title, markdown };
 }
 
 function pathValue(value: unknown): string | undefined {

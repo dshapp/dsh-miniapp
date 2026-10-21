@@ -15,6 +15,7 @@ import {
   mergeTurnRailItems,
   presentedFiles as decodePresentedFiles,
   producedPath,
+  submittedPlan,
   TURN_RAIL_PROMPT_LIMIT,
   TURN_RAIL_RESPONSE_LIMIT,
 } from '../model/format';
@@ -38,6 +39,7 @@ import type {
   CompactionSummaryNode,
   ContentBlock,
   ModelRetryNode,
+  SubmittedPlan,
   TokenUsage,
   ToolChatData,
   ToolResultData,
@@ -2708,6 +2710,7 @@ export class SessionStore {
           break;
       }
     }
+    this.attachSubmittedPlans(built, tools);
     const childrenByParent = new Map<CallId, ToolChatData[]>();
     for (const tool of Array.from(tools.values())) {
       const parent = tool.parentCallId;
@@ -2745,6 +2748,31 @@ export class SessionStore {
     keyed = this.applyTurnProcessFolding(keyed);
     this.nodes = keyed.map(item => item.node);
     this.indexRows();
+  }
+
+  /**
+   * 已结束轮次里 exit_plan_mode 提交的计划（含程序内派发的子调用）挂到该轮页脚，
+   * 不论审批结果；审批中的不挂，免得与计划评审弹层重复（web ui-plan `PlanCards`）。
+   */
+  private attachSubmittedPlans(built: ChatNode[], tools: Map<CallId, ToolChatData>): void {
+    const byTurn = new Map<number, ToolChatData[]>();
+    for (const tool of Array.from(tools.values())) {
+      if (tool.name !== 'exit_plan_mode' || this.turnEndBoundaryAfter(tool.startSeq) === undefined) continue;
+      const calls = byTurn.get(tool.turn);
+      if (calls === undefined) byTurn.set(tool.turn, [tool]);
+      else calls.push(tool);
+    }
+    if (byTurn.size === 0) return;
+    built.forEach((node, index) => {
+      if (node.kind !== 'turnTail') return;
+      const calls = byTurn.get(node.data.turn);
+      if (calls === undefined) return;
+      const plans = calls
+        .sort((a, b) => a.startSeq - b.startSeq)
+        .map(call => submittedPlan(call.callId, call.argsRaw))
+        .filter((plan): plan is SubmittedPlan => plan !== undefined);
+      if (plans.length > 0) built[index] = { kind: 'turnTail', data: { ...node.data, plans } };
+    });
   }
 
   private applyTurnProcessFolding(input: KeyedNode[]): KeyedNode[] {

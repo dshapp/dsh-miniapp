@@ -348,7 +348,12 @@ export interface TurnTailData {
   /** turn/end 落定后的结局：aborted → 停止，error → 失败，其余算完成（web `TurnProcessNodeView`）。 */
   outcome?: TurnOutcome;
   endedAt?: number;
+  /** 这一轮（已结束）用 exit_plan_mode 提交的计划，按调用顺序（web ui-plan `PlanCards`）。 */
+  plans?: SubmittedPlan[];
 }
+
+/** exit_plan_mode 提交的一份计划（web ui-plan `submittedPlan`）。 */
+export interface SubmittedPlan { callId: CallId; title: string; markdown: string }
 
 export type TurnOutcome = 'completed' | 'stopped' | 'failed';
 

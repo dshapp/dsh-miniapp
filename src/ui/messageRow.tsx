@@ -26,6 +26,7 @@ import type {
   ChatNode,
   ContentBlock,
   FileAttachmentRef,
+  SubmittedPlan,
   ToolChangeNode,
   TurnProcessSpec,
   TurnTriggerNode,
@@ -891,6 +892,32 @@ function TimePanel(props: { data: TurnTailData }): JSX.Element {
 }
 
 /**
+ * 已结束轮次提交的一份计划（web ui-plan `PlanCards`）：整张卡与「打开」都打开详情弹层看完整 Markdown。
+ */
+function PlanCard(props: { plan: SubmittedPlan }): JSX.Element {
+  const { plan } = props;
+  const open = (): void =>
+    openCardDetail({
+      icon: 'file-text',
+      title: plan.title,
+      copyText: plan.markdown,
+      content: <MarkdownView text={plan.markdown} />,
+    });
+  return (
+    <View className={styles.planCard} aria-role='button' aria-label={fmt(Strings.planCardOpen, plan.title)} onClick={open}>
+      <View className={styles.planCardIcon}>
+        <Icon name='file-text' className={styles.planCardGlyph} />
+      </View>
+      <View className={styles.planCardText}>
+        <Text className={styles.planCardTitle}>{plan.title}</Text>
+        <Text className={styles.planCardKind}>{Strings.planCardKind}</Text>
+      </View>
+      <Text className={styles.planCardOpen}>{Strings.planCardAction}</Text>
+    </View>
+  );
+}
+
+/**
  * 一轮结束的页脚：复制回复、分支、用量与用时、结束时刻。
  *
  * 明细从 Android 的弹窗改成点击胶囊就地展开，避免在滚动容器里再叠一层浮层。
@@ -930,16 +957,22 @@ function TurnTailRow(props: { data: TurnTailData; onFork?: (turn: number) => voi
         loadDiff={loadTurnChangesDiff}
       />
     );
+  const plans = data.plans === undefined ? null : (
+    <View className={styles.planCards}>
+      {data.plans.map(plan => <PlanCard key={plan.callId} plan={plan} />)}
+    </View>
+  );
   // 停止/失败的结局已经由这一轮的折叠头交代（「已停止」「处理失败」），页脚不再重复一行提示；
-  // 与 Mac 一样，这样的轮次没有收尾消息，也就没有复制/分支/用量/用时这一排，只留改动文件卡。
+  // 与 Mac 一样，这样的轮次没有收尾消息，也就没有复制/分支/用量/用时这一排，只留改动文件卡与计划卡。
   if (data.outcome === 'stopped' || data.outcome === 'failed') {
-    return <View>{changes}</View>;
+    return <View>{changes}{plans}</View>;
   }
   const totalTokens = data.usage === undefined ? 0 : turnTotalTokens(data.usage);
   // 页脚只有两个读数胶囊：总 token 与用时；TPS/TTFT 在用时明细里（对齐 Android StatPill）。
   return (
     <View>
       {changes}
+      {plans}
       <View className={styles.tail}>
         {closingText === undefined || closingText.length === 0 ? null : (
           <View className={styles.tailButton} onClick={() => void copyClosing()}>
