@@ -1385,6 +1385,15 @@ export class AppModel {
    * 文件（readAll 上限 32 MiB，base64 后更大）一次攥在手里。失败返回 undefined。
    */
   async workspaceImageTempPath(sessionId: SessionId, path: string): Promise<string | undefined> {
+    const value = await this.workspaceImageLookup(sessionId, path);
+    return value === 'missing' ? undefined : value;
+  }
+
+  /**
+   * 同 workspaceImageTempPath，但把主机明确回的「文件不存在」单独报成 'missing'
+   *（改动文件卡片要据此画「文件已不存在」，其余失败照旧是 undefined）。
+   */
+  async workspaceImageLookup(sessionId: SessionId, path: string): Promise<string | 'missing' | undefined> {
     // 扩展名只在文件名上找：`/tmp/v1.2/shot` 这种目录里带点的路径，在整条路径上找点
     // 会把 `2/shot` 当扩展名（与 model/imageFileType 的口径一致）。
     const ext = fileExtension(path).replace(/[^a-z0-9]/g, '');
@@ -1402,7 +1411,7 @@ export class AppModel {
         },
       });
       return filePath;
-    } catch {
+    } catch (error) {
       // 半截文件绝不能留：交给 previewImage 只会是一张打不开的破图
       //（对齐 Android 失败时删掉缓存文件的处理）。
       try {
@@ -1410,7 +1419,7 @@ export class AppModel {
       } catch {
         // 还没写出任何一片时文件本来就不存在。
       }
-      return undefined;
+      return error instanceof ApiException && error.code === 'workspace-file/not-found' ? 'missing' : undefined;
     }
   }
 

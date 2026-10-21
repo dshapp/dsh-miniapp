@@ -87,3 +87,13 @@
   font-size: 13px;
   color: var(--dsh-color-text-faint);
 }
+
+.imageBox {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+}
+
+.image {
+  max-width: 100%;
+}

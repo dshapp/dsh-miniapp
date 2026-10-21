@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, View } from '@tarojs/components';
+import { Image, Text, View } from '@tarojs/components';
 import { color_bad, color_good, color_text, color_text_faint } from '../const';
 import { Strings, fmt } from '../i18n/strings';
 import type {
@@ -8,6 +8,8 @@ import type {
   TurnChangesAddress,
   TurnChangesSummary,
 } from '../model/turnChanges';
+import { changedFileHostPath } from '../model/turnChanges';
+import { EmptyState } from './emptyState';
 import { Icon } from './icon';
 import { openCardDetail } from './cardDetail';
 import styles from './changedFilesCard.module.scss';
@@ -22,6 +24,8 @@ export interface ChangedFilesCardProps {
   loadSummary: (address: TurnChangesAddress) => Promise<TurnChangesSummary | undefined>;
   /** 读单个列出的文件的轮首/轮末比较。 */
   loadDiff: (address: TurnChangesAddress, index: number) => Promise<ChangedFileDiff | undefined>;
+  /** 读回二进制文件当图片看（本地临时路径）；'missing' 表示主机明确说文件已不存在。 */
+  loadImage?: (sessionId: string, path: string) => Promise<string | 'missing' | undefined>;
 }
 
 /**
@@ -33,7 +37,7 @@ export interface ChangedFilesCardProps {
  * 这里复用全局 CardDetailHost）。
  */
 export function ChangedFilesCard(props: ChangedFilesCardProps): JSX.Element | null {
-  const { address, loadSummary, loadDiff } = props;
+  const { address, loadSummary, loadDiff, loadImage } = props;
   const [summary, setSummary] = React.useState<TurnChangesSummary | undefined>(undefined);
   const [expanded, setExpanded] = React.useState(false);
   // 正在读比较的文件行：安卓在弹窗里转圈，这里先把行标出来，读完再开弹层。
@@ -72,12 +76,22 @@ export function ChangedFilesCard(props: ChangedFilesCardProps): JSX.Element | nu
   const openDiff = (file: ChangedFileEntry, index: number): void => {
     if (pendingPath !== undefined) return;
     setPendingPath(file.path);
-    void loadDiff(address, index)
-      .then(value => {
+    // 二进制文件先（与比较并行）按路径读回字节当图片看：不等比较先回来，
+    // 免得比较走了缓存或并发时图片永远不去取（对齐 Mac）。
+    const image = file.binary && loadImage !== undefined
+      ? loadImage(address.sessionId, changedFileHostPath(summary, file)).catch(() => undefined)
+      : Promise.resolve(undefined);
+    void Promise.all([loadDiff(address, index), image])
+      .then(([value, imagePath]) => {
+        const body = <DiffBody diff={value} />;
         openCardDetail({
           icon: 'file-text',
           title: file.display,
-          content: <DiffBody diff={value} />,
+          content: imagePath === 'missing' ? (
+            <EmptyState name='circle-help' title={Strings.changedFileMissingTitle} description={Strings.changedFileMissingBody} />
+          ) : imagePath !== undefined ? (
+            <ChangedFileImage src={imagePath} fallback={body} />
+          ) : body,
         });
       })
       .catch(() => {
@@ -133,6 +147,28 @@ export function ChangedFilesCard(props: ChangedFilesCardProps): JSX.Element | nu
           </Text>
         </View>
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * 二进制改动文件按图片显示：原生 Image + widthFix 等比缩放，宽度取图片本身宽度、
+ * 不超过弹层宽度（小图不放大）；解不出图（不是图片）退回原来的「二进制」文案。
+ */
+function ChangedFileImage(props: { src: string; fallback: JSX.Element }): JSX.Element {
+  const [width, setWidth] = React.useState<number | undefined>(undefined);
+  const [failed, setFailed] = React.useState(false);
+  if (failed) return props.fallback;
+  return (
+    <View className={styles.imageBox}>
+      <Image
+        className={styles.image}
+        src={props.src}
+        mode='widthFix'
+        style={width === undefined ? { visibility: 'hidden' } : { width: width + 'px' }}
+        onLoad={event => setWidth(Number(event.detail.width))}
+        onError={() => setFailed(true)}
+      />
     </View>
   );
 }

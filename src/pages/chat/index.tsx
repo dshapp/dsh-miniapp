@@ -474,6 +474,7 @@ export default function ChatPage(): JSX.Element {
           changesAddress={turn => model.changesAddressForTurn(sessionId, turn)}
           loadTurnChanges={address => model.loadTurnChanges(address)}
           loadTurnChangesDiff={(address, index) => model.loadTurnChangesDiff(address, index)}
+          loadTurnChangesImage={(sid, path) => model.workspaceImageLookup(sid, path)}
           loadAutomations={() => scheduleCatalog(model.managementTransport())}
           fileMentions={node.kind === 'assistant'
             ? store.closingMentions(node.step.turn, node.step.step, node.step.status === 'running')

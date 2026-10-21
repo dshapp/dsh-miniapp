@@ -27,6 +27,8 @@ export interface TurnChangesAddress { sessionId: string; seq: number }
 /** 一轮改动文件的汇总（主机 WorkspaceChangesSummary）。 */
 export interface TurnChangesSummary {
   turn: number;
+  /** 这一轮的会话工作目录：files 里相对的 path 都相对它（主机 WorkspaceChangesSummary.cwd）。 */
+  cwd?: string;
   files: ChangedFileEntry[];
   /** 完整的改动文件数，可能大于 files（主机有上限）。 */
   total: number;
@@ -61,7 +63,20 @@ export function decodeTurnChangesSummary(value: JsonValue | undefined): TurnChan
       oversized: bool(jget(entry, 'oversized')) === true,
     });
   }
-  return { turn, files, total, added, deleted };
+  return { turn, cwd: str(jget(value, 'cwd')), files, total, added, deleted };
+}
+
+/**
+ * 改动文件在主机上可读的路径：主机给的 path 在工作目录内是相对路径（相对的是**这一轮**的
+ * cwd，会话之后换了工作目录也不变），在外面是绝对路径。相对的拼上 summary.cwd，再交给
+ * workspaceFiles 读；没有 cwd（老主机）就原样交出，由主机按会话作用域解析——与正文文件链接同一条通路。
+ */
+export function changedFileHostPath(summary: TurnChangesSummary, file: ChangedFileEntry): string {
+  const { path } = file;
+  const { cwd } = summary;
+  if (cwd === undefined || cwd.length === 0) return path;
+  if (path.startsWith('/') || path.startsWith('\\\\') || /^[A-Za-z]:[\\/]/.test(path)) return path;
+  return cwd.replace(/[\\/]+$/, '') + '/' + path;
 }
 
 /** 比较结果里的一段统一 diff；每行保留 +、- 或空格前缀。 */

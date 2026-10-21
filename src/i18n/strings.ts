@@ -83,6 +83,8 @@ const TABLE = {
   changedFilesNoLines: ['No changes', '内容没有变化'],
   changedFilesCoarse: ['Comparison timed out; every line is shown as replaced', '比较超时，已按整文件替换显示'],
   changedFilesUnavailable: ['Couldn’t load this file’s changes', '无法读取该文件的改动'],
+  changedFileMissingTitle: ['File No Longer Exists', '文件已不存在'],
+  changedFileMissingBody: ['It was moved or deleted after this turn.', '这次修改之后，文件已被移动或删除。'],
   restore: ['Restore', '恢复'],
   offlineBannerTitle: ['Can’t reach your Desktop', '无法连接到电脑'],
   offlineBannerBody: ['Check that DSH is running on your Desktop and this phone is online.', '请确认电脑上的 DSH 正在运行，且手机网络正常。'],

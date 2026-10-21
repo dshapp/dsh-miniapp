@@ -108,6 +108,8 @@ export interface MessageRowProps {
   loadTurnChanges?: (address: TurnChangesAddress) => Promise<TurnChangesSummary | undefined>;
   /** 读单个列出的文件的比较。 */
   loadTurnChangesDiff?: (address: TurnChangesAddress, index: number) => Promise<ChangedFileDiff | undefined>;
+  /** 读回二进制改动文件当图片看：本地临时路径；'missing' 表示主机说文件已不存在。 */
+  loadTurnChangesImage?: (sessionId: string, path: string) => Promise<string | 'missing' | undefined>;
   /** 读自动化任务目录（schedule/catalog），给定时任务消息的详情查任务名称与时间规则。 */
   loadAutomations?: () => Promise<ManagedAutomation[]>;
 }
@@ -926,10 +928,11 @@ interface TurnChangesDeps {
   changesAddress?: MessageRowProps['changesAddress'];
   loadTurnChanges?: MessageRowProps['loadTurnChanges'];
   loadTurnChangesDiff?: MessageRowProps['loadTurnChangesDiff'];
+  loadTurnChangesImage?: MessageRowProps['loadTurnChangesImage'];
 }
 
 function TurnTailRow(props: { data: TurnTailData; onFork?: (turn: number) => void } & TurnChangesDeps): JSX.Element {
-  const { data, onFork, changesAddress, loadTurnChanges, loadTurnChangesDiff } = props;
+  const { data, onFork, changesAddress, loadTurnChanges, loadTurnChangesDiff, loadTurnChangesImage } = props;
   const [copied, setCopied] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
@@ -955,6 +958,7 @@ function TurnTailRow(props: { data: TurnTailData; onFork?: (turn: number) => voi
         address={changesAddress(data.turn)}
         loadSummary={loadTurnChanges}
         loadDiff={loadTurnChangesDiff}
+        loadImage={loadTurnChangesImage}
       />
     );
   const plans = data.plans === undefined ? null : (
@@ -1096,6 +1100,7 @@ export function MessageRow(props: MessageRowProps): JSX.Element {
           changesAddress={props.changesAddress}
           loadTurnChanges={props.loadTurnChanges}
           loadTurnChangesDiff={props.loadTurnChangesDiff}
+          loadTurnChangesImage={props.loadTurnChangesImage}
         />
       ) : <View />;
     case 'turnProcess':
