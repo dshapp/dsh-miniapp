@@ -9,7 +9,7 @@ import type { ToolChatData, ToolResultData } from '../model/chatNode';
 import { imageReferences, lenientImageRefs, readImageCard, type ImageCard } from '../model/imageCards';
 import { openCardDetail, pushCardDetail } from './cardDetail';
 import { toolRowModel } from '../model/toolRow';
-import { AttachmentImage, useImageGroup, type OpenImage } from './attachmentImage';
+import { AttachmentImage, useImageGroup, type OpenImage, type ResolveImage } from './attachmentImage';
 import type { ToolRowState, ToolRowVariant } from '../model/toolRow';
 import { HighlightedText } from './findHighlight';
 import { Icon, type LucideIconName } from './icon';
@@ -167,7 +167,7 @@ export function ToolCard(props: {
   findQuery?: string;
   findActive?: boolean;
   sessionId?: string;
-  resolveImage?: (attachmentId: string, sessionId: string) => Promise<string | undefined>;
+  resolveImage?: ResolveImage;
   onOpenImage?: OpenImage;
   /** 子调用递归深度；根调用是 0。 */
   depth?: number;
@@ -263,7 +263,7 @@ export function ToolCard(props: {
 function ToolImageCard(props: {
   card: ImageCard;
   sessionId: string;
-  resolveImage?: (attachmentId: string, sessionId: string) => Promise<string | undefined>;
+  resolveImage?: ResolveImage;
   onOpenImage?: OpenImage;
 }): JSX.Element {
   const group = useImageGroup();
@@ -274,7 +274,7 @@ function ToolImageCard(props: {
         <AttachmentImage
           key={ref.attachmentId}
           sessionId={props.sessionId}
-          attachment={{ attachmentId: ref.attachmentId, name: ref.name } as unknown as JsonValue}
+          attachment={ref}
           resolveImage={props.resolveImage}
           onOpenImage={props.onOpenImage}
           group={group}
@@ -326,7 +326,7 @@ function DiffBlock(props: { result: ToolResultData }): JSX.Element {
 export function ToolResultView(props: {
   result: ToolResultData;
   sessionId?: string;
-  resolveImage?: (attachmentId: string, sessionId: string) => Promise<string | undefined>;
+  resolveImage?: ResolveImage;
   onOpenImage?: OpenImage;
 }): JSX.Element {
   const { result } = props;
@@ -347,7 +347,7 @@ export function ToolResultView(props: {
             <AttachmentImage
               key={ref.attachmentId}
               sessionId={sessionId}
-              attachment={{ attachmentId: ref.attachmentId, name: ref.name } as unknown as JsonValue}
+              attachment={ref}
               resolveImage={props.resolveImage}
               onOpenImage={props.onOpenImage}
               group={group}

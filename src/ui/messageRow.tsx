@@ -13,7 +13,6 @@ import { openCardDetail } from './cardDetail';
 
 /** 没有 store 可订阅时给 TurnProcessRow 用的常量空 store（避免在组件里做条件 hook）。 */
 const EMPTY_EXPANDED_STORE = new Store<boolean>(false);
-import type { JsonValue } from '../model/json';
 import {
   chatNodeRendersRow,
   fileAttachmentRefs,
@@ -50,8 +49,8 @@ import {
   turnTotalTokens,
 } from '../model/format';
 import { DetailSection, JsonTree, NoticeRow, ThinkCard, ToolCard } from './cards';
-import { ImageGallery, decodeAttachmentRef, type OpenImage } from './attachmentImage';
-export { AttachmentImage, decodeAttachmentRef, type AttachmentRef } from './attachmentImage';
+import { ImageGallery, type OpenImage, type ResolveImage } from './attachmentImage';
+import { decodeImageRef, type ImageAttachmentRef } from '../model/imageCards';
 import { ChangedFilesCard } from './changedFilesCard';
 import type { FileLinkTarget } from '../model/fileLink';
 import type { ChangedFileDiff, TurnChangesAddress, TurnChangesSummary } from '../model/turnChanges';
@@ -90,7 +89,7 @@ export interface MessageRowProps {
   /** 轮次页脚的 Fork 按钮：参数是这一轮的收尾 seq（对齐 Android onFork(data.seq)）。 */
   onFork?: (seq: number) => void;
   /** 拉取图片附件的本地临时路径；返回 undefined 时显示占位骨架 */
-  resolveImage?: (attachmentId: string, sessionId: string) => Promise<string | undefined>;
+  resolveImage?: ResolveImage;
   /** 点击图片附件时打开大图 */
   onOpenImage?: OpenImage;
   /** 过程折叠的展开态真相源：展开后 store 会把这轮的思考/工具行放回转写。 */
@@ -172,8 +171,8 @@ function UserBubble(props: {
   // 只有解得出的附件才排进气泡；解不出的按 Android 口径直接丢掉。
   const images = content
     .filter((block): block is Extract<ContentBlock, { kind: 'image' }> => block.kind === 'image')
-    .map((block) => block.attachment)
-    .filter((attachment): attachment is JsonValue => attachment !== undefined && decodeAttachmentRef(attachment) !== undefined);
+    .map((block) => decodeImageRef(block.attachment))
+    .filter((ref): ref is ImageAttachmentRef => ref !== undefined);
   const files = fileAttachmentRefs(content);
   // 点一下气泡弹「复制」；长按仍交给系统文本选择（外层 Text 的 selectable/user-select）。
   const [copyMenu, setCopyMenu] = useState(false);
@@ -346,16 +345,17 @@ function AssistantRow(props: {
   const streamingBlock = step.status === 'running' ? step.blocks[step.blocks.length - 1] : undefined;
   // 连续图片块合成一组相册（对齐 Android ImageGallery 的相邻分组）：
   // 组首记下 refs，组内其余下标跳过。
-  const galleries = new Map<number, JsonValue[]>();
+  const galleries = new Map<number, ImageAttachmentRef[]>();
   const gallerySkip = new Set<number>();
   for (let i = 0; i < blocks.length; i++) {
     if (blocks[i].kind !== 'image') continue;
-    const refs: JsonValue[] = [];
+    const refs: ImageAttachmentRef[] = [];
     let cursor = i;
     while (cursor < blocks.length) {
       const candidate = blocks[cursor];
       if (candidate.kind !== 'image') break;
-      if (candidate.attachment !== undefined) refs.push(candidate.attachment);
+      const ref = decodeImageRef(candidate.attachment);
+      if (ref !== undefined) refs.push(ref);
       cursor++;
     }
     galleries.set(i, refs);

@@ -1,30 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Text, View } from '@tarojs/components';
 import { Strings } from '../i18n/strings';
-import { jget, str } from '../model/json';
-import type { JsonValue } from '../model/json';
+import type { ImageAttachmentRef } from '../model/imageCards';
 import { previewUrls } from '../model/imagePreview';
 import { Icon } from './icon';
 import styles from './messageRow.module.scss';
 
-/** 图片附件在这层只认 attachmentId/name 两个字段，其余元数据附件组件并不需要。 */
-export interface AttachmentRef {
-  attachmentId: string;
-  name?: string;
-}
-
 /**
- * 从 image 内容块的 attachment 里解出可用的引用。
- *
- * 与 Android 的 decodeImageRef 同义：解不出来（老版本消息、被截断的流式 JSON）
- * 就当这条附件不存在，宁可少画一张图，也不要抛错把整条转写带崩。
+ * 取一张图片附件的本地临时路径。参数是转写里图片块的完整引用：0.2.2 的 session/attachment
+ * 要拿整份 ImageAttachmentRef 去换字节，只给 attachmentId 会被网关拒绝。
  */
-export function decodeAttachmentRef(value: JsonValue | undefined): AttachmentRef | undefined {
-  const attachmentId = str(jget(value, 'attachmentId'));
-  if (attachmentId === undefined || attachmentId.length === 0) return undefined;
-  const name = str(jget(value, 'name'));
-  return name === undefined || name.length === 0 ? { attachmentId } : { attachmentId, name };
-}
+export type ResolveImage = (attachment: ImageAttachmentRef, sessionId: string) => Promise<string | undefined>;
 
 /**
  * 点开图片：localPath 是被点的那张，urls 是同组可左右滑动的全部本地路径（含 localPath）。
@@ -54,8 +40,8 @@ export function useImageGroup(): ImageGroup {
 /** 用户气泡、助手附件与工具结果共用的图片：先从宿主拿本地临时路径，拿到前先摆一个骨架。 */
 export function AttachmentImage(props: {
   sessionId: string;
-  attachment: JsonValue;
-  resolveImage?: (attachmentId: string, sessionId: string) => Promise<string | undefined>;
+  attachment: ImageAttachmentRef;
+  resolveImage?: ResolveImage;
   onOpenImage?: OpenImage;
   /** 一组多图时缩成小图（Web/Android 的 compact 相册）。 */
   compact?: boolean;
@@ -63,8 +49,8 @@ export function AttachmentImage(props: {
   group?: ImageGroup;
   groupIndex?: number;
 }): JSX.Element {
-  const ref = decodeAttachmentRef(props.attachment);
-  const attachmentId = ref === undefined ? undefined : ref.attachmentId;
+  const ref = props.attachment;
+  const attachmentId = ref.attachmentId;
   const [localPath, setLocalPath] = useState<string | undefined>(undefined);
   // 取不到附件时给一句人能读的失败文案，而不是永远转圈（对齐 Android imageUnavailable）。
   const [failed, setFailed] = useState(false);
@@ -79,12 +65,12 @@ export function AttachmentImage(props: {
     setLocalPath(undefined);
     setFailed(false);
     const resolve = resolveRef.current;
-    if (resolve === undefined || attachmentId === undefined) {
+    if (resolve === undefined) {
       return () => {
         cancelled = true;
       };
     }
-    resolve(attachmentId, props.sessionId)
+    resolve(ref, props.sessionId)
       .then((path) => {
         if (cancelled) return;
         setLocalPath(path);
@@ -108,7 +94,6 @@ export function AttachmentImage(props: {
   }, [group, groupIndex, localPath]);
   useEffect(() => () => group?.register(groupIndex, undefined), [group, groupIndex]);
 
-  if (ref === undefined) return <View />;
   if (failed) {
     return (
       <View className={props.compact === true ? styles.imageFailed + ' ' + styles.imageFailedCompact : styles.imageFailed}>
@@ -143,19 +128,18 @@ export function AttachmentImage(props: {
  * 对齐 Android ImageGallery。
  */
 export function ImageGallery(props: {
-  refs: JsonValue[];
+  refs: ImageAttachmentRef[];
   sessionId: string;
-  resolveImage?: (attachmentId: string, sessionId: string) => Promise<string | undefined>;
+  resolveImage?: ResolveImage;
   onOpenImage?: OpenImage;
   alignEnd?: boolean;
 }): JSX.Element | null {
   const group = useImageGroup();
-  const valid = props.refs.filter((value) => decodeAttachmentRef(value) !== undefined);
-  if (valid.length === 0) return null;
-  const compact = valid.length > 1;
+  if (props.refs.length === 0) return null;
+  const compact = props.refs.length > 1;
   return (
     <View className={props.alignEnd === true ? styles.gallery + ' ' + styles.galleryEnd : styles.gallery}>
-      {valid.map((attachment, index) => (
+      {props.refs.map((attachment, index) => (
         <AttachmentImage
           key={index}
           sessionId={props.sessionId}

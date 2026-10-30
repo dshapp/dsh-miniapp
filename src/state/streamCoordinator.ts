@@ -335,6 +335,8 @@ export class StreamCoordinator {
         address: encodeSessionAddress(target),
         ...historyWindowArgs(maxMessages),
         assistantStream: true,
+        // 0.2.2：打开会话即在后台唤起 Agent（与 Web 一致）；不带时冷会话 agentAvailable 一直是 false。
+        activate: true,
       },
     };
     this.mux?.subscribe(followStreamId(sessionId), 'session/follow', args);

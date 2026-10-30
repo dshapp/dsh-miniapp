@@ -452,30 +452,11 @@ function QueueStrip(props: {
   );
 }
 
-/** 附件缩略：本地临时路径直接当 src，缺预览时向宿主要一次本地路径。 */
-function AttachmentThumb(props: { sessionId: string; attachment: PhoneAttachment }): JSX.Element {
+/** 附件缩略：选图时拿到的本地临时路径直接当 src（还没发出去，主机那边没有这张图）。 */
+function AttachmentThumb(props: { attachment: PhoneAttachment }): JSX.Element {
   const payload = props.attachment.payload;
-  const localPreview = payload.kind === 'image' && payload.preview.length > 0 ? payload.preview : undefined;
-  const [fetched, setFetched] = React.useState<string | undefined>(undefined);
-  React.useEffect(() => {
-    if (payload.kind !== 'image' || localPreview !== undefined) return undefined;
-    let cancelled = false;
-    getAppModel()
-      .attachmentImage(props.sessionId, props.attachment.id)
-      .then(path => {
-        if (!cancelled) setFetched(path);
-      })
-      .catch(() => {
-        // 拿不到就继续摆骨架。
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [payload.kind, localPreview, props.sessionId, props.attachment.id]);
   if (payload.kind !== 'image') return <Icon name='file-text' className={styles.chipGlyph} />;
-  const src = localPreview ?? fetched;
-  if (src === undefined) return <View className={styles.thumbSkeleton}><Text className={styles.thumbSkeletonGlyph}>…</Text></View>;
-  return <Image className={styles.thumb} src={src} mode='aspectFill' />;
+  return <Image className={styles.thumb} src={payload.preview} mode='aspectFill' />;
 }
 
 // —— 主组件 ————————————————————————————————————————————————
@@ -908,7 +889,7 @@ export function ComposerBar(props: ComposerBarProps): JSX.Element {
           <View className={styles.attachmentRow}>
             {attachments.map(attachment => (
               <View key={attachment.id} className={styles.chip}>
-                <AttachmentThumb sessionId={sessionId} attachment={attachment} />
+                <AttachmentThumb attachment={attachment} />
                 <Text className={styles.chipText}>{attachment.name}</Text>
                 <Icon
                   name='x'

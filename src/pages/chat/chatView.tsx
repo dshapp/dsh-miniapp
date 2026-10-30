@@ -492,7 +492,7 @@ export function ChatView(props: ChatViewProps): JSX.Element {
           fileMentions={node.kind === 'assistant'
             ? store.closingMentions(node.step.turn, node.step.step, node.step.status === 'running')
             : undefined}
-          resolveImage={(attachmentId, sid) => model.attachmentImage(sid, attachmentId)}
+          resolveImage={(attachment, sid) => model.attachmentImage(sid, attachment)}
           // 过程折叠的展开态归 store：展开后这一轮的思考/工具行会真的回到转写里
           // （对齐 Android store.isTurnProcessExpanded / setTurnProcessExpanded）。
           turnProcessExpanded={spec => store.expandedProcessStore(spec)}
@@ -521,7 +521,7 @@ export function ChatView(props: ChatViewProps): JSX.Element {
           referencedSessions={referencedSessions}
           onOpenSession={openSession}
           // 插队消息带的图也要能显示、能点开（与转写里的用户气泡同一条通路）。
-          resolveImage={(attachmentId, sid) => model.attachmentImage(sid, attachmentId)}
+          resolveImage={(attachment, sid) => model.attachmentImage(sid, attachment)}
           onOpenImage={openImage}
         />
       </View>,

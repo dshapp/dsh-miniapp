@@ -5,6 +5,7 @@ import type {
   SessionAddress, SessionCreateValue, SessionForkValue, SessionHistoryValue, SessionId, SessionListValue,
   SessionModelsValue, SessionPageValue, SessionReferenceItem, SessionSearchValue, SessionSelectModelValue,
   SkillListValue, SubagentAddress, SubagentListEntry, SubagentListValue, SubagentMode, SessionAttachmentValue,
+  ImageAttachmentRef,
   WorkspaceFileBytesValue,
   WorkspaceFileTextValue, WorkspaceId, WorkspaceOrderValue, ModelCatalogValue,
   PermissionPresetOption, WorkspaceView,
@@ -305,24 +306,28 @@ export async function sessionUpdateQueue(
   await transport.call('session/updateQueue', request({ sessionId, itemId, action: encodeQueueAction(action) }));
 }
 
+/**
+ * 取一张历史图片的字节（0.2.2）：请求带转写里图片块的完整引用，主机按它校验 ID、类型、
+ * 字节数与尺寸后读回 base64。服务端 schema 严格，只回传引用自己的字段，可选字段没有就省略。
+ */
 export async function sessionAttachment(
   transport: RpcTransport,
   sessionId: SessionId,
-  attachmentId: string,
+  attachment: ImageAttachmentRef,
 ): Promise<SessionAttachmentValue> {
-  const value = await transport.call('session/attachment', request({ sessionId, attachmentId }));
-  const attachment = jget(value, 'attachment');
-  return {
-    attachment: {
-      attachmentId: str(jget(attachment, 'attachmentId')) ?? attachmentId,
-      mediaType: str(jget(attachment, 'mediaType')) ?? 'image/png',
-      bytes: 0,
-      width: 0,
-      height: 0,
-      name: str(jget(attachment, 'name')),
-    },
-    data: str(jget(value, 'data')) ?? '',
+  const ref: JsonObject = {
+    attachmentId: attachment.attachmentId,
+    mediaType: attachment.mediaType,
+    bytes: attachment.bytes,
+    width: attachment.width,
+    height: attachment.height,
   };
+  if (attachment.name !== undefined) ref.name = attachment.name;
+  if (attachment.originalDimensions !== undefined) {
+    ref.originalDimensions = { width: attachment.originalDimensions.width, height: attachment.originalDimensions.height };
+  }
+  const value = await transport.call('session/attachment', request({ sessionId, attachment: ref }));
+  return { attachment, data: str(jget(value, 'data')) ?? '' };
 }
 
 /**

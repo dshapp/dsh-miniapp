@@ -11,7 +11,8 @@ import type { ContentBlock, ToolChatData } from './chatNode';
  *      "bytes":56549, "width":1080, "height":2400, "name":"emu1.png",
  *      "originalDimensions":{"width":..,"height":..}}}
  *
- * 字节不走消息体：图片由 host 落盘，客户端拿 attachmentId 去 session/attachment 换 base64。
+ * 字节不走消息体：图片由 host 落盘，客户端拿整份引用去 session/attachment 换 base64（0.2.2 起
+ * 只给 attachmentId 会被网关拒绝）。
  */
 
 /** 一张持久化图片块可以声明的媒体类型；其余一律拒绝。 */

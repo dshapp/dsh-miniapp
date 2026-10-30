@@ -66,6 +66,7 @@ import { fileExtension } from '../model/imageFileType';
 import { modelDirectoryBeginLoading, modelDirectoryBeginSelecting, modelDirectoryFail, modelDirectoryReceiveModels, modelDirectoryReceiveSelected } from '../model/types';
 import type {
   AgentPresetEntry,
+  ImageAttachmentRef,
   ModelSelection,
   PermissionPresetOption,
   SessionAddress,
@@ -1362,11 +1363,12 @@ export class AppModel {
   }
 
   /** 图片附件：拿到 base64 后落成临时文件，Image 组件只吃本地路径。 */
-  async attachmentImage(sessionId: SessionId, attachmentId: string): Promise<string | undefined> {
+  async attachmentImage(sessionId: SessionId, attachment: ImageAttachmentRef): Promise<string | undefined> {
+    const attachmentId = attachment.attachmentId;
     const cached = this.imageCache.get(attachmentId);
     if (cached !== undefined) return cached;
     try {
-      const value = await sessionAttachment(this.requireTransport(), sessionId, attachmentId);
+      const value = await sessionAttachment(this.requireTransport(), sessionId, attachment);
       if (value.data.length === 0) return undefined;
       const filePath = writeTempImage(attachmentId, value.data);
       if (filePath === undefined) return undefined;

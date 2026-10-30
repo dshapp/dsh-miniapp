@@ -345,21 +345,6 @@
   border-radius: 4px;
 }
 
-.thumbSkeleton {
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  background: var(--dsh-color-border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.thumbSkeletonGlyph {
-  font-size: 11px;
-  color: var(--dsh-color-text-faint);
-}
-
 // —— 输入卡片 ————————————————————————————————————————————————
 
 /* 输入卡片：垂直内边距 8px、字段与操作行间距 4px、底色 surfaceVariant
