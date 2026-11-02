@@ -1,0 +1,29 @@
+/*
+ * 图标基类。字体本身（子集 woff2 的 @font-face）在 src/styles/lucide.scss，由 app.scss
+ * 全局引入；这里把字形摆正，并让图标能像文字一样横排、能点。
+ */
+.icon {
+  font-family: 'lucide', sans-serif;
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.spin {
+  animation: lucide-spin 1s linear infinite;
+}
+
+/* 「进行中」卡片的明暗呼吸不在这里：它是整行（图标 + 标题）一起呼吸，见 ui/breathe.module.scss。 */
+
+/* keyframes 必须和 .spin 在同一个 CSS Module 里：postcss-modules 会给两者加同一份
+ * 哈希，若把 keyframes 留在全局 scss，动画名就对不上了。 */
+@keyframes lucide-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

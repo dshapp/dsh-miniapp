@@ -1,0 +1,53 @@
+// 设计常量镜像自 src/const.ts。
+//
+// 颜色用 CSS 自定义属性（--dsh-*）而不是 Sass 变量：Sass 变量是编译期常量，一份源码
+// 只能产出一套颜色，做不到运行期切换主题。这里给浅色默认值，深色覆盖见 theme.scss。
+//
+// 组件样式里只允许用 `var(--dsh-*)` 或这组半径，不要在 .module.scss 里硬写颜色。
+//
+// 语义色（good/bad/warning）取安卓写死的十六进制（ComposerBar.kt:709-711、
+// ChangedFilesCard.kt:32-33、SessionListScreen.kt:469-471），而不是 Tailwind 系的近似色：
+// +N/−N、待办三态、计划模式、模型重试、连接状态点都要与安卓逐色一致。
+
+// 只用 `page`：WXSS 不支持 `:root`，写成选择器列表可能整条规则被丢掉。
+page {
+  --dsh-color-primary: #1c64f2;
+  /* 实心主色/语义色按钮上的前景（对齐 M3 onPrimary / onError）：浅色主题主色够深，
+     前景用白；深色主题主色被提亮了，白字会糊，所以 theme.scss 里换成深色前景。 */
+  --dsh-color-on-primary: #ffffff;
+  --dsh-color-on-bad: #ffffff;
+  /* 用户气泡的容器色（对齐 M3 primaryContainer / onPrimaryContainer）。 */
+  --dsh-color-primary-container: #dbe4ff;
+  --dsh-color-on-primary-container: #10275e;
+  /* 安卓写死的语义色：绿 #2E7D32、红 #C62828、橙 #E08600。 */
+  --dsh-color-good: #2e7d32;
+  --dsh-color-bad: #c62828;
+  --dsh-color-warning: #e08600;
+  --dsh-color-text: #1f2328;
+  --dsh-color-text-sub: #6b7280;
+  --dsh-color-text-faint: #9ca3af;
+  --dsh-color-bg: #f5f6f8;
+  --dsh-color-card: #ffffff;
+  --dsh-color-border: #e5e7eb;
+  /* M3 surfaceVariant / onSurfaceVariant / outline：输入卡片、候选面板、卡片行图标用。
+     取中性灰而不是 M3 那档带紫的 #e7e0ec：同一屏里挨着中性灰的转写卡片时，紫调很明显。 */
+  --dsh-color-surface-variant: #e8eaed;
+  --dsh-color-on-surface-variant: #49454f;
+  --dsh-color-outline: #79747e;
+  /* 转写里所有「块」的唯一底色：代码块头、引用、表头、工具结果、diff、变更文件卡片、
+     统计面板、胶囊、图片占位全用这一个值。安卓那边是 surfaceVariant 的 0.34/0.5/0.55
+     三档半透明，照搬到小程序会变成三种深浅不一的灰紫，看着就是「每张卡片颜色都不一样」。 */
+  --dsh-color-card-surface: #eef0f2;
+  /* 连接状态点：安卓连接中是橙 #E08600、已连接是绿 #2E9E4F。 */
+  --dsh-color-connecting: #e08600;
+  --dsh-color-online: #2e9e4f;
+  /* M3 errorContainer / onErrorContainer：连接失败的提示胶囊底色。 */
+  --dsh-color-error-container: #f9dedc;
+  --dsh-color-on-error-container: #410e0b;
+  /* 语义色的 12% 底：终端退出码 chip、+N/−N 徽标等。 */
+  --dsh-color-good-container: #e6f2e8;
+  --dsh-color-bad-container: #f7e3e3;
+
+  --dsh-radius-card: 12px;
+  --dsh-radius-bubble: 18px;
+}

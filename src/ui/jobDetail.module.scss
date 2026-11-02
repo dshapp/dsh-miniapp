@@ -1,0 +1,134 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 28px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--dsh-color-card-surface);
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.statusGlyph {
+  font-size: 14px;
+  color: var(--dsh-color-primary);
+}
+
+.statusText,
+.outputTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dsh-color-text);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.stopButton,
+.copyButton {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--dsh-color-border);
+}
+
+.stopButton {
+  border-color: var(--dsh-color-bad);
+}
+
+.stopGlyph {
+  font-size: 12px;
+  color: inherit;
+}
+
+.stopText {
+  font-size: 13px;
+  color: var(--dsh-color-bad);
+}
+
+.stopButton .stopGlyph {
+  color: var(--dsh-color-bad);
+}
+
+.copyText {
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+}
+
+.field {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.fieldLabel {
+  width: 64px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--dsh-color-text-faint);
+}
+
+.fieldValue {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--dsh-color-text);
+  word-break: break-all;
+}
+
+.mono,
+.outputText,
+.outputEmpty {
+  font-family: Menlo, Consolas, 'Courier New', monospace;
+}
+
+.bad {
+  font-size: 13px;
+  color: var(--dsh-color-bad);
+}
+
+.fieldValue.bad {
+  font-size: 14px;
+}
+
+.muted {
+  font-size: 12px;
+  color: var(--dsh-color-text-faint);
+}
+
+.output {
+  min-height: 120px;
+  max-height: 360px;
+  padding: 8px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  border: 1px solid var(--dsh-color-border);
+  background: var(--dsh-color-bg, transparent);
+}
+
+.outputText {
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre;
+  color: var(--dsh-color-text);
+}
+
+.outputEmpty {
+  font-size: 12px;
+  color: var(--dsh-color-text-faint);
+}

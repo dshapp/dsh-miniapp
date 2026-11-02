@@ -1,0 +1,38 @@
+// 深色主题。
+//
+// 主题偏好在设置页选（state/settings.ts），framework/hook.ts 的 useThemeClass 把选择
+// 解析成 `dsh-theme-dark` 类挂在 App 最外层 View 上（小程序没法给 `page` 元素加类）。
+// 这里只负责换掉那一组自定义属性。小程序没有原生的 prefer-color-scheme 媒体查询支持，
+// 所以「跟随系统」是在 JS 侧判定后写成 light/dark。
+//
+// 色板对齐 Android Theme.kt 的 M3 深色方案：底色变深、卡片比底色略亮一档、
+// 文字反转、主色提亮以保证在深底上的对比度。
+
+.dsh-theme-dark {
+  --dsh-color-primary: #7fa8ff;
+  /* 深色主题的主色/语义色都被提亮成浅色，实心按钮上的前景必须反过来用深色。 */
+  --dsh-color-on-primary: #10275e;
+  --dsh-color-on-bad: #3f1212;
+  --dsh-color-primary-container: #23365e;
+  --dsh-color-on-primary-container: #dbe4ff;
+  --dsh-color-good: #4ade80;
+  --dsh-color-bad: #f87171;
+  --dsh-color-warning: #fbbf24;
+  --dsh-color-text: #e6e8eb;
+  --dsh-color-text-sub: #9aa4b2;
+  --dsh-color-text-faint: #6b7280;
+  --dsh-color-bg: #121417;
+  --dsh-color-card: #1c1f24;
+  --dsh-color-border: #2c3138;
+  --dsh-color-surface-variant: #272b31;
+  --dsh-color-on-surface-variant: #cac4d0;
+  --dsh-color-outline: #938f99;
+  /* 转写里所有「块」的唯一底色（见 vars.scss 的说明）。 */
+  --dsh-color-card-surface: #22262c;
+  --dsh-color-connecting: #fbbf24;
+  --dsh-color-online: #4ade80;
+  --dsh-color-error-container: #4a2523;
+  --dsh-color-on-error-container: #f9dedc;
+  --dsh-color-good-container: #1e3222;
+  --dsh-color-bad-container: #3a2222;
+}

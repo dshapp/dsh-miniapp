@@ -1,0 +1,41 @@
+@use '../../node_modules/@nutui/nutui-react-taro/dist/styles/variables' as *;
+@use '../styles/vars' as dsh;
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  gap: 8px;
+}
+
+.glyph {
+  font-size: 40px;
+  color: var(--dsh-color-outline);
+}
+
+.title {
+  font-size: 16px;
+  color: var(--dsh-color-text);
+  font-weight: 500;
+}
+
+.description {
+  font-size: 14px;
+  color: var(--dsh-color-text-sub);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.action {
+  margin-top: 12px;
+  padding: 8px 20px;
+  border-radius: 18px;
+  background: var(--dsh-color-primary);
+}
+
+.actionText {
+  font-size: 14px;
+  color: #ffffff;
+}

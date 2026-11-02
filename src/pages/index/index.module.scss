@@ -1,0 +1,250 @@
+@use '../../../node_modules/@nutui/nutui-react-taro/dist/styles/variables' as *;
+@use '../../styles/vars' as dsh;
+
+.page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  /* 安卓 SessionListScreen 是 Scaffold(surface 底) + 透明 ListItem，行间没有分隔线，
+     所以整页取卡片/表面色，行自身不再铺白底画线。 */
+  background: var(--dsh-color-card);
+  // 列表尾巴留出底部安全区（全面屏的手势条）。
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
+/* 连接状态点的点按范围：对齐 Android `IconButton { ConnectionDot(model) }`——
+   点的是一个标准图标按钮，只是里面画的是一颗小圆点而不是图标。 */
+.statusDotButton {
+  width: 40px;
+  height: 40px;
+  max-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 20px;
+}
+
+.statusDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.dotOk {
+  background: var(--dsh-color-good);
+}
+
+.dotPending {
+  background: var(--dsh-color-warning);
+}
+
+.dotBad {
+  background: var(--dsh-color-bad);
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* 对齐 Android SectionHeader：padding(horizontal = 16.dp, vertical = 10.dp)。 */
+  padding: 10px 16px;
+}
+
+.groupTitle {
+  /* 对齐 Android titleSmall（14sp）+ outline 色。 */
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--dsh-color-outline);
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.groupCount {
+  font-size: 12px;
+  color: var(--dsh-color-outline);
+}
+
+/* 对齐 Android ExpandMore 20dp + outline。 */
+.chevron {
+  font-size: 20px;
+  color: var(--dsh-color-outline);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* 对齐 M3 ListItem 单行 56dp：透明底、无分隔线。 */
+  min-height: 56px;
+  padding: 0 16px;
+}
+
+/* 宽屏并排页右栏正在显示的会话：左右内缩的一块圆角底（对齐 Mac 边栏 / 安卓 secondaryContainer）。 */
+.rowSelected {
+  margin: 0 6px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: var(--dsh-color-primary-container);
+}
+
+.rowSelected .rowTitle {
+  color: var(--dsh-color-on-primary-container);
+}
+
+.rowTitle {
+  flex: 1;
+  /* 对齐 M3 ListItem headline bodyLarge（16sp）。 */
+  font-size: 16px;
+  color: var(--dsh-color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.glyph {
+  /* 对齐 Android StatusGlyph 的 16dp 图标与 outline 默认色。 */
+  width: 16px;
+  font-size: 16px;
+  line-height: 20px;
+  color: var(--dsh-color-outline);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.glyphRunning {
+  color: var(--dsh-color-primary);
+}
+
+.glyphAwaiting {
+  color: var(--dsh-color-warning);
+}
+
+.glyphError {
+  color: var(--dsh-color-bad);
+}
+
+.glyphPinned {
+  color: var(--dsh-color-outline);
+}
+
+.trailing {
+  font-size: 12px;
+  color: var(--dsh-color-outline);
+  flex-shrink: 0;
+}
+
+.badge {
+  padding: 2px 8px;
+  border-radius: 9px;
+  background: rgba(224, 134, 0, 0.14);
+  color: var(--dsh-color-warning);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.notice {
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--dsh-color-outline);
+}
+
+.showMore {
+  /* 对齐 Android TextButton（labelLarge 14sp）。 */
+  padding: 12px;
+  font-size: 14px;
+  color: var(--dsh-color-primary);
+}
+
+.footer {
+  padding: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--dsh-color-text-faint);
+}
+
+/* 空态/连接中：在剩余空间里垂直+水平居中（对齐 Android StatusOverlay 的
+   Modifier.align(Alignment.Center)，它盖在整个列表之上）。 */
+.stateArea {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+/* 连接 / 拉列表时的加载态：主色转圈 + 一行标题 + 一行说明。 */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  gap: 8px;
+}
+
+.loadingGlyph {
+  font-size: 32px;
+  color: var(--dsh-color-primary);
+  margin-bottom: 8px;
+}
+
+.loadingTitle {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--dsh-color-text);
+  text-align: center;
+}
+
+.loadingBody {
+  font-size: 14px;
+  color: var(--dsh-color-text-sub);
+  text-align: center;
+}
+
+/*
+ * 宽屏（平板、横屏）并排布局：左栏会话列表、右栏会话详情，整页不滚动，两栏各自滚。
+ * 对齐安卓 WideSessionLayout 与 Mac 的边栏 + 详情。
+ */
+.split {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--dsh-color-card);
+}
+
+.listPane {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  height: 100%;
+  box-sizing: border-box;
+  background: var(--dsh-color-card);
+  border-right: 1px solid var(--dsh-color-border);
+}
+
+.listScroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.listInner {
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
+.detailPane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  background: var(--dsh-color-bg);
+}
+
+.detailPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}

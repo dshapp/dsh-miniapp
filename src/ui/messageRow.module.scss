@@ -1,0 +1,686 @@
+@use '../../node_modules/@nutui/nutui-react-taro/dist/styles/variables' as *;
+@use '../styles/vars' as dsh;
+
+/*
+ * 转写行的布局样式。
+ *
+ * 颜色一律走 styles/_vars.scss（镜像 const.ts），不在样式表里另写 hex；
+ * 少数必须由组件按状态动态决定的颜色（工作流状态、运行中）走 style 内联。
+ */
+
+/* 用户气泡：整行靠右；气泡本体在列宽的 82% 以内按内容自适应。 */
+.userRow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  padding-top: 8px;
+}
+
+/* 定时任务气泡上方的来源标签：小号次要色，点开任务详情（对齐 Mac 的 trigger 标签）。 */
+.bubbleSource {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.bubbleSourceGlyph {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsh-color-text-faint);
+}
+
+.bubbleSourceText {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsh-color-text-faint);
+}
+
+.bubbleWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 82%;
+}
+
+.bubble {
+  display: inline-block;
+  max-width: 100%;
+  padding: 9px 14px;
+  /* 用户气泡走主题的容器色（对齐 Android primaryContainer / onPrimaryContainer）。 */
+  background: var(--dsh-color-primary-container);
+}
+
+.bubbleText {
+  display: block;
+  font-size: 15px;
+  line-height: 23px;
+  color: var(--dsh-color-on-primary-container);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* 用户消息的文件附件卡片（对齐 Mac `MessageFileCard` / web `.fileCard`）：图标 + 文件名 + 扩展名与大小。 */
+.fileCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 240px;
+  max-width: 82%;
+  min-height: 56px;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border-radius: var(--dsh-radius-bubble);
+  border: 1px solid var(--dsh-color-border);
+}
+
+.fileCardGlyph {
+  flex-shrink: 0;
+  font-size: 24px;
+  color: var(--dsh-color-text-sub);
+}
+
+.fileCardText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fileCardName {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--dsh-color-text);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.fileCardMeta {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsh-color-text-faint);
+}
+
+/* 输入框上方的运行状态条（对齐 Mac RunningStatusRow）：一行 chromeRowHeight 高，
+   与页脚同一档的次要灰。图标槽与卡片图标同宽（14），转圈与上方卡片的图标对齐。 */
+.runningStatus {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  height: 18px;
+}
+
+.runningStatusSlot {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+}
+
+/* Mac 这里是系统最小号的转圈（ProgressView .mini）。 */
+.runningStatusGlyph {
+  font-size: 11px;
+  line-height: 11px;
+  color: var(--dsh-color-text-faint);
+}
+
+.runningStatusText {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsh-color-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 点击气泡后浮出的「复制」小泡，与正文同侧、贴在气泡下方。 */
+.copyMenu {
+  margin-top: 4px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: var(--dsh-color-card);
+  border: 1px solid var(--dsh-color-border);
+}
+
+.copyMenuText {
+  font-size: 13px;
+  color: var(--dsh-color-text);
+}
+
+/* 圈选元素 XML 的卡片（对齐 Android XmlMessageCards.kt / 插件 conversation.css .xml-card）：
+   卡片不是用户原话，所以不套气泡底色，单独一层描边表面；整体靠右，与用户消息同侧。 */
+.xmlCards {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: 92%;
+}
+
+.xmlCardList {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.xmlCardDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.xmlCard {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 0.5px solid var(--dsh-color-border);
+  border-radius: 10px;
+  background: var(--dsh-color-card);
+}
+
+.xmlCardDetail .xmlCard {
+  width: 100%;
+}
+
+/* 标签头保留等宽字体：它显示的确实是标记名，不是文案。 */
+.xmlCardTag {
+  display: block;
+  margin-bottom: 4px;
+  font-family: Menlo, monospace;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--dsh-color-text-sub);
+}
+
+/* 两列 grid：键右对齐贴住值，键列宽按本卡最长的键（插件 / Mac LabeledContent 的读法）。 */
+.xmlCardBody {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+  row-gap: 1px;
+  align-items: baseline;
+}
+
+.xmlCardKey {
+  font-family: Menlo, monospace;
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--dsh-color-text-faint);
+  text-align: right;
+  max-width: 40vw;
+  word-break: break-all;
+}
+
+.xmlCardValue {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--dsh-color-text);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* 「查看全部」挂在卡片列尾部。 */
+.xmlCardsMore {
+  font-size: 13px;
+  padding: 2px 0;
+}
+
+/* 图片附件：单张按 Android 的 280x220 收口，竖图不会撑满屏。 */
+.attachmentImage {
+  max-width: 280px;
+  max-height: 220px;
+  border-radius: 10px;
+}
+
+/* 一组多图时的缩略尺寸（对齐 Android compact 120dp）。 */
+.attachmentImageCompact {
+  max-width: 120px;
+  max-height: 120px;
+}
+
+/*
+ * 连续图片成组：与 Android ImageGallery 同口径，单张铺开、多张排成一行缩略图。
+ * 多图不换行、整行横滑（Android 的 horizontalScroll）——换行堆叠会把一条消息撑成几屏高，
+ * 相册该是「一排缩略图」而不是「一片图墙」。
+ */
+.gallery {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.galleryEnd {
+  justify-content: flex-end;
+}
+
+/* 骨架与失败态同尺寸：对齐 Android MessageRow.kt:210-229 的 60% 宽 x 120 高，
+   避免加载完成后行高跳变。 */
+.imageSkeleton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60%;
+  height: 120px;
+  border-radius: 10px;
+  background: var(--dsh-color-card-surface);
+}
+
+.imageSkeletonCompact {
+  width: 120px;
+  height: 120px;
+}
+
+.imageSkeletonGlyph {
+  font-size: 18px;
+  color: var(--dsh-color-text-faint);
+}
+
+/* 附件取不回来时的失败占位：与骨架同尺寸、纯文字居中（对齐 Android imageUnavailable）。 */
+.imageFailed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 60%;
+  height: 120px;
+  border-radius: 10px;
+  background: var(--dsh-color-card-surface);
+  border: 1px solid var(--dsh-color-border);
+}
+
+.imageFailedGlyph {
+  font-size: 18px;
+  color: var(--dsh-color-text-faint);
+}
+
+.imageFailedText {
+  font-size: 13px;
+  color: var(--dsh-color-text-sub);
+}
+
+/* 助手正文块：与过程卡之间留出间距，长文不至于贴在一起。 */
+.assistant {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+/* 正文消息只在顶部多让一口气（Mac PhoneLayout.messageTopInset = 8），其余间距归 rowSpacing。 */
+.mdBlock {
+  padding-top: 8px;
+}
+
+/* 气泡里的会话引用：整条标题一个可点的主题色 token，字号随正文。 */
+.bubbleRef {
+  word-break: break-word;
+}
+
+/* 折叠卡片：与 Android CardRow 同一行距，展开内容缩进一级。 */
+.card {
+  width: 100%;
+}
+
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  /* 卡片行紧排：对齐 Mac iOS PhoneLayout.chromeRowHeight = 18，与 cards 的工具/思考行同一行高。 */
+  min-height: 18px;
+}
+
+.rowClickable {
+  cursor: pointer;
+}
+
+.rowGlyph {
+  flex-shrink: 0;
+  width: 14px;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.rowTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 16px;
+  /* 与 cards 里的思考/工具行同一档灰：卡片行都是过程信息，不跟正文抢对比度。 */
+  color: var(--dsh-color-text-sub);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rowSuffix {
+  flex-shrink: 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsh-color-text-faint);
+}
+
+.caret {
+  flex-shrink: 0;
+  width: 12px;
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+  color: var(--dsh-color-text-faint);
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0 8px 24px;
+}
+
+/* 迟到的提问回答：问题与答案缩进到图标槽之后（对齐 Android Dimens.iconSlot + 6dp）。 */
+.questionReplyPair {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0 2px 20px;
+}
+
+.questionReplyQuestion {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--dsh-color-text);
+  word-break: break-word;
+}
+
+.questionReplyAnswer {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--dsh-color-text-sub);
+  word-break: break-word;
+}
+
+.detailText {
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--dsh-color-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/*
+ * 轮次折叠头（对齐 Mac TurnProcessRow）：「已完成，用时 35分53秒」+ 紧跟其右的箭头，
+ * 下方一条整宽分割线（Mac Divider，与标题行间距 8）。字号与助手正文同档（markdown 16/25），
+ * 颜色是卡片标题的次级灰；可折叠时按下提亮一档（hover-class），不画背景。
+ * 文字与箭头都不自带颜色，跟着容器走，按下态只改容器一处。
+ */
+.process {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  color: var(--dsh-color-text-sub);
+}
+
+.processPressed {
+  color: var(--dsh-color-text);
+}
+
+.processHeading {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  /* Mac HStack(spacing: 4)：箭头紧跟文字，不被推到行尾。 */
+  gap: 4px;
+  min-width: 0;
+}
+
+.processLabel {
+  min-width: 0;
+  font-size: 16px;
+  line-height: 25px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 一枚向下的箭头，展开时转 180°（带短过渡），不靠两个字形互换。 */
+.processChevron {
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 13px;
+  transition: transform 0.1s ease-in-out;
+}
+
+.processChevronOpen {
+  transform: rotate(180deg);
+}
+
+.processDivider {
+  height: 1px;
+  margin-top: 8px;
+  background: var(--dsh-color-border);
+}
+
+/* 工作流展开后的各阶段。 */
+.phase {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.phaseLabel {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsh-color-text-sub);
+}
+
+.memberRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.memberGlyph {
+  flex-shrink: 0;
+  width: 16px;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.memberLabel {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--dsh-color-text);
+}
+
+/* 计划卡（web ui-plan PlanCards）：改动文件卡之后、页脚操作行之前，多张纵向排。 */
+.planCards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.planCard {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  height: 60px;
+  padding: 8px 10px;
+  border: 1px solid var(--dsh-color-border);
+  border-radius: var(--dsh-radius-card);
+  background: var(--dsh-color-card);
+}
+
+.planCardIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--dsh-color-border);
+  border-radius: 10px;
+}
+
+.planCardGlyph {
+  font-size: 20px;
+  color: var(--dsh-color-text-sub);
+}
+
+.planCardText {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.planCardTitle {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--dsh-color-text);
+}
+
+.planCardKind {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--dsh-color-text-faint);
+}
+
+.planCardOpen {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--dsh-color-border);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsh-color-text);
+}
+
+/*
+ * 轮次页脚：按钮、统计胶囊、结束时刻排成一行。
+ * 窄屏放不下四个胶囊时允许换行，宁可折成两行也不横向溢出。
+ */
+.tail {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  width: 100%;
+  padding: 2px 0;
+}
+
+.tailButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.tailGlyph {
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.pill {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--dsh-color-card-surface);
+}
+
+.pillGlyph {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.pillText {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsh-color-text-sub);
+}
+
+.tailClock {
+  padding-left: 4px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsh-color-text-faint);
+}
+
+/* 用量/用时明细面板：点击胶囊后就地展开，不再叠一层浮层。 */
+.statPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 2px;
+  padding: 10px;
+  border: 1px solid var(--dsh-color-border);
+  border-radius: var(--dsh-radius-card);
+  background: var(--dsh-color-card-surface);
+}
+
+.statRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.statLabel {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--dsh-color-text-sub);
+}
+
+/* 值可能很长（模型名、路由列表），限制在一行里截断。 */
+.statValue {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--dsh-color-text);
+  text-align: right;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 缩略组里的失败占位也跟着收小。 */
+.imageFailedCompact {
+  max-width: 112px;
+}

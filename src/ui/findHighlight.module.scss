@@ -1,0 +1,16 @@
+@use '../../node_modules/@nutui/nutui-react-taro/dist/styles/variables' as *;
+
+/*
+ * 查找高亮刻意不取主题色，对齐 Android 版 DshFind：
+ * 黄底黑字要在浅色/深色下都能压过正文，当前命中的那一段换成橙底以示区分。
+ * 所以这里的色值是有意写死的，不是漏用 const.ts。
+ */
+.hit {
+  background-color: #ffff00;
+  color: #000000;
+}
+
+/* 放在 .hit 之后，同级选择器后者覆盖前者，命中段同时套两个类时以橙底为准。 */
+.active {
+  background-color: #ff9632;
+}

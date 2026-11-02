@@ -1,0 +1,80 @@
+@use '../../styles/vars' as dsh;
+
+.page {
+  display: flex;
+  flex-direction: column;
+  /* 自定义导航栏之后这页自己就是一整屏：顶栏在流内，剩下的高度全给滚动区，
+     所以要 height 而不是 min-height（ScrollView 需要一个确定的高度）。 */
+  height: 100vh;
+  box-sizing: border-box;
+  /* 与安卓一致：整页取表面色，行自身透明（ListItem）。 */
+  background: var(--dsh-color-card);
+  overflow: hidden;
+}
+
+/* 顶栏、标题与搜索输入都归 ui/navBar.tsx 管，这里不再重复一套。 */
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 空态撑满剩余高度并居中（对齐 Android 的 EmptyStateColumn center）。
+   wxss 不支持 :first-child 伪类，所以由这个包裹层自己吃 margin:auto。 */
+.stateCenter {
+  margin: auto;
+}
+
+.rows {
+  padding-bottom: 24px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* 对齐 M3 两行 ListItem 的 72dp 高度，透明底、无分隔线。 */
+  min-height: 72px;
+  box-sizing: border-box;
+  padding: 8px 16px;
+}
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowTitle {
+  display: block;
+  font-size: 16px;
+  color: var(--dsh-color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rowMeta {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--dsh-color-on-surface-variant);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rowRestore {
+  font-size: 14px;
+  color: var(--dsh-color-primary);
+  flex-shrink: 0;
+  padding: 4px 6px;
+}
+
+.rowBusy {
+  font-size: 16px;
+  color: var(--dsh-color-on-surface-variant);
+  flex-shrink: 0;
+}
